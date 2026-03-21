@@ -5,6 +5,11 @@
       "source": "/home/user/Claude/browser-use",
       "sourceType": "local",
       "computedHash": "4606d2f8d774773b1f70b40631eef5a8aac8f9ab4207884f6dff25428a229cea"
+    },
+    "remotion-best-practices": {
+      "source": "remotion-dev/skills",
+      "sourceType": "github",
+      "computedHash": "2f673b7710813ac07c71c0a54657f740078aec6585f15edf351494499e1f9ac3"
     }
   }
 }
