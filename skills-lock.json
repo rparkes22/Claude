@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "browser-use": {
+      "source": "/home/user/Claude/browser-use",
+      "sourceType": "local",
+      "computedHash": "4606d2f8d774773b1f70b40631eef5a8aac8f9ab4207884f6dff25428a229cea"
+    }
+  }
+}
