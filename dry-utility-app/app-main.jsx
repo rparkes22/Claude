@@ -1206,9 +1206,8 @@ function App() {
     showToast(`${proj.code} · ${proj.name} created`);
   };
 
-  if (!currentUser) return <LoginScreen users={users} onLogin={login} />;
-
   // per-user open load vs capacity (for assignee dropdowns)
+  // NOTE: must stay above the LoginScreen early return — hooks can't come after a conditional return.
   const userLoads = React.useMemo(() => {
     let caps = {}; try { caps = JSON.parse(localStorage.getItem('msa_app_capacity_v1')) || {}; } catch (e) {}
     const map = {};
@@ -1220,6 +1219,8 @@ function App() {
     }));
     return map;
   }, [projects, users, taskOverrides]);
+
+  if (!currentUser) return <LoginScreen users={users} onLogin={login} />;
 
   const openProject = openProjectId ? projects.find(x => x.id === openProjectId) : null;
   const pageTitle = openProject ? 'Project' : page === 'dash' ? 'Dashboard' : page === 'tracker' ? 'Projects' : page === 'research' ? 'Utility Research' : page === 'coord' ? 'Utility Coordination' : page === 'team' ? 'Team Workload' : page === 'wsl' ? 'Will Serve Letters' : page === 'reports' ? 'Client Reports' : page === 'catalog' ? 'Agencies & Contacts' : 'Users & Permissions';
