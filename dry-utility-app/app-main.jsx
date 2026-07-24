@@ -1316,4 +1316,8 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+// Wait for the Supabase state pull (resolves immediately in offline mode) so the
+// first render sees synced data instead of stale local copies.
+(window.__msaStoreReady || Promise.resolve()).then(() => {
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+});

@@ -109,11 +109,16 @@ function ContractsPanel({ p, canWrite, currentUser }) {
   const onPick = (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    if (f.size <= 512 * 1024) {
-      const r = new FileReader();
-      r.onload = () => setFile({ name: f.name, size: f.size, type: f.type, dataUrl: r.result });
-      r.readAsDataURL(f);
-    } else setFile({ name: f.name, size: f.size, type: f.type });
+    const fallback = () => {
+      if (f.size <= 512 * 1024) {
+        const r = new FileReader();
+        r.onload = () => setFile({ name: f.name, size: f.size, type: f.type, dataUrl: r.result });
+        r.readAsDataURL(f);
+      } else setFile({ name: f.name, size: f.size, type: f.type });
+    };
+    if (window.__msaUploadAttachment) {
+      window.__msaUploadAttachment(f, p.id).then(up => up ? setFile(up) : fallback());
+    } else fallback();
     e.target.value = '';
   };
   const save = () => {
@@ -178,8 +183,8 @@ function ContractsPanel({ p, canWrite, currentUser }) {
                 {c.amount && <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{c.amount.startsWith('$') ? c.amount : '$' + c.amount}</span>}
                 <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>{fmtShort(c.ts)}{c.by ? ` · ${c.by}` : ''}</span>
                 {c.file && (
-                  c.file.dataUrl
-                    ? <a href={c.file.dataUrl} download={c.file.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}><ProjIcon name="download" size={11} />{c.file.name}</a>
+                  (c.file.url || c.file.dataUrl)
+                    ? <a href={c.file.url || c.file.dataUrl} target={c.file.url ? '_blank' : undefined} rel="noreferrer" download={c.file.url ? undefined : c.file.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}><ProjIcon name="download" size={11} />{c.file.name}</a>
                     : <span title="Stored reference — file too large to embed in prototype" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--ink-3)' }}><ProjIcon name="file" size={11} />{c.file.name}</span>
                 )}
               </div>
@@ -693,13 +698,19 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
   const ingestFiles = (files) => {
     if (!files.length) return;
     const mapped = files.map(f => new Promise(res => {
-      // store small files as data URLs so previews/downloads survive reload; large files metadata-only
-      if (f.size <= 512 * 1024) {
-        const r = new FileReader();
-        r.onload = () => res({ name: f.name, size: f.size, type: f.type, dataUrl: r.result });
-        r.onerror = () => res({ name: f.name, size: f.size, type: f.type });
-        r.readAsDataURL(f);
-      } else res({ name: f.name, size: f.size, type: f.type });
+      const fallback = () => {
+        // offline fallback: small files as data URLs so previews/downloads survive reload; large files metadata-only
+        if (f.size <= 512 * 1024) {
+          const r = new FileReader();
+          r.onload = () => res({ name: f.name, size: f.size, type: f.type, dataUrl: r.result });
+          r.onerror = () => res({ name: f.name, size: f.size, type: f.type });
+          r.readAsDataURL(f);
+        } else res({ name: f.name, size: f.size, type: f.type });
+      };
+      // preferred path: upload to Supabase Storage, keep only the public URL
+      if (window.__msaUploadAttachment) {
+        window.__msaUploadAttachment(f, p.id).then(up => up ? res(up) : fallback());
+      } else fallback();
     }));
     Promise.all(mapped).then(list => setAttachments(prev => [...prev, ...list]));
   };
@@ -886,16 +897,17 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                       {ev.kind === 'note' && ev.files && ev.files.length > 0 && (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                           {ev.files.map((f, fi) => {
-                            const isImg = f.dataUrl && (f.type || '').startsWith('image/');
+                            const href = f.url || f.dataUrl; // url = Supabase Storage; dataUrl = offline fallback
+                            const isImg = href && (f.type || '').startsWith('image/');
                             return isImg ? (
-                              <a key={fi} href={f.dataUrl} download={f.name} title={`${f.name} · ${fmtSize(f.size)}`} style={{ display: 'block', width: 84, height: 60, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                <img src={f.dataUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              <a key={fi} href={href} target={f.url ? '_blank' : undefined} rel="noreferrer" download={f.url ? undefined : f.name} title={`${f.name} · ${fmtSize(f.size)}`} style={{ display: 'block', width: 84, height: 60, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                <img src={href} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                               </a>
                             ) : (
-                              <a key={fi} href={f.dataUrl || '#'} download={f.dataUrl ? f.name : undefined} onClick={f.dataUrl ? undefined : (e) => e.preventDefault()} title={f.dataUrl ? 'Download' : 'Stored reference — file too large to embed in prototype'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface-2)', fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', textDecoration: 'none' }}>
+                              <a key={fi} href={href || '#'} target={f.url ? '_blank' : undefined} rel="noreferrer" download={!f.url && f.dataUrl ? f.name : undefined} onClick={href ? undefined : (e) => e.preventDefault()} title={f.url ? 'Open' : f.dataUrl ? 'Download' : 'Stored reference — file too large to embed in prototype'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface-2)', fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', textDecoration: 'none' }}>
                                 <ProjIcon name="file" size={11} />{f.name}
                                 <span style={{ fontWeight: 400, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace', fontSize: 10 }}>{fmtSize(f.size)}</span>
-                                {f.dataUrl && <ProjIcon name="download" size={10} />}
+                                {href && <ProjIcon name="download" size={10} />}
                               </a>
                             );
                           })}

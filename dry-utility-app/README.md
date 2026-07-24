@@ -16,8 +16,27 @@ python3 -m http.server 8000
 # open http://localhost:8000/Dry%20Utility%20App.html
 ```
 
-Sign in with one of the demo users on the login screen. All state (session, project edits,
-overrides) persists in `localStorage`.
+Sign in with one of the demo users on the login screen.
+
+## Data & attachments (Supabase)
+
+The app syncs its state to a Supabase backend (project `msa-project-tracker`,
+`kqjanadbdtyfirureylk.supabase.co`), configured inline in the HTML `<head>` via
+`window.MSA_SUPABASE` and implemented in `app-store.js`:
+
+- Every `msa_app_*` localStorage key is mirrored to the `app_state` table
+  (debounced, last-write-wins), and pulled back on page load — so project edits,
+  notes, and settings are shared across devices and users. The login session and
+  notification read-state stay per-device.
+- Note and contract attachments (PDFs etc.) upload to the public `attachments`
+  Storage bucket; only the URL is kept in app state, so there is no file-size cap.
+- If Supabase is unreachable the app silently falls back to localStorage-only
+  mode (small attachments embed as data URLs, as before).
+
+Security note: this is prototype-grade — the publishable key has full read/write
+access to `app_state` and the bucket via permissive RLS policies. Anyone with the
+key (i.e. anyone who can view the page source) can read/modify the data. Move to
+Supabase Auth + row-level policies before using it with real client data.
 
 ## Notes on the import
 
