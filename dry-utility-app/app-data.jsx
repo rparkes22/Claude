@@ -523,7 +523,13 @@ function deriveWsl(wsl) {
   else if (daysLeft <= 30) state = 'critical';
   else if (daysLeft <= 60) state = 'warning';
   else state = 'active';
-  return { ...wsl, issued, originalExpiry, effectiveExpiry, daysLeft, state };
+  // Once a WSL has gone out its status stays "Sent" — expiry is tracked separately
+  // by `state`, and never downgrades the fact that the letter was issued.
+  const status = 'Sent';
+  // An extension is worth chasing when time is short (or already gone) and the
+  // single 6-month extension has not been used yet.
+  const needsExtension = !wsl.extensionUsed && (state === 'warning' || state === 'critical' || state === 'expired');
+  return { ...wsl, issued, originalExpiry, effectiveExpiry, daysLeft, state, status, sent: true, needsExtension };
 }
 
 const PHASE_META = {

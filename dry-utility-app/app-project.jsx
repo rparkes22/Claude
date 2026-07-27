@@ -479,7 +479,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table className="task-table" style={{ width: '100%' }}>
-          <thead><tr><th style={{ paddingLeft: 16 }}>Utility</th><th>Sent to</th><th>Method</th><th>Letter sent</th><th>Research received</th><th style={{ textAlign: 'right', paddingRight: 16 }}>Letter</th></tr></thead>
+          <thead><tr><th style={{ paddingLeft: 16 }}>Utility</th><th>Sent to</th><th>Method</th><th>Letter sent</th><th>Research received</th><th style={{ paddingRight: 16 }}>Letter</th></tr></thead>
           <tbody>
             {rows.map(r => {
               const a = AGENCIES[r.agency];
@@ -524,7 +524,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
                       )}
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right', paddingRight: 16, whiteSpace: 'nowrap' }}>
+                  <td style={{ paddingRight: 16, whiteSpace: 'nowrap' }}>
                     {r.file && <a href={r.file} target="_blank" rel="noopener" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}><ProjIcon name="file" size={11} />PDF</a>}
                     {r.logged && canWrite && <button className="btn btn-ghost btn-sm" style={{ height: 22, padding: '0 6px', color: 'var(--warn)', marginLeft: 6 }} title="Remove logged letter" onClick={() => removeAdded(r.id)}><ProjIcon name="x" size={10} /></button>}
                   </td>
@@ -1034,9 +1034,15 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
               )}
               {wd ? (
                 <>
+                  {/* status stays "Sent" for the life of the project — expiry is separate */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span className="badge b-ok"><span className="badge-dot"></span>Sent {fmtShort(wd.issued)}</span>
+                    {wd.state === 'expired' && <span className="badge b-warn"><span className="badge-dot"></span>Expired</span>}
+                    {wd.extensionUsed && <span className="badge b-violet"><span className="badge-dot"></span>Extension used</span>}
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: fill }}>{wd.state === 'expired' ? 'DEAD' : wd.daysLeft}</span>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{wd.state === 'expired' ? `expired ${fmtShort(wd.effectiveExpiry)}` : 'days until expiry'}</span>
+                    <span className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: fill }}>{wd.state === 'expired' ? Math.abs(wd.daysLeft) : wd.daysLeft}</span>
+                    <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{wd.state === 'expired' ? `days past expiry (${fmtShort(wd.effectiveExpiry)})` : 'days until expiry'}</span>
                   </div>
                   <div className="wsl-bar">
                     <div className="wsl-bar-fill" style={{ width: `${Math.min(todayPos, 100)}%`, background: fill, opacity: 0.4 }}></div>

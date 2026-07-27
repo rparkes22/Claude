@@ -68,12 +68,14 @@ function DDPips({ dd }) {
 }
 function WslChip({ wd }) {
   if (!wd) return <span className="util-tag util-sce">SCE · n/a</span>;
-  if (wd.state === 'expired') return <span className="days-chip crit">expired</span>;
-  const cls = wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok';
+  // The letter stays "Sent" once issued; expiry rides alongside it as a separate signal.
+  const cls = wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok';
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      <span className={`days-chip ${cls}`}>{wd.daysLeft}d</span>
-      {wd.extensionUsed && <span className="badge b-violet" style={{ padding: '1px 6px', fontSize: 10 }}>ext</span>}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Sent</span>
+      <span className={`days-chip ${cls}`}>{wd.state === 'expired' ? `expired ${fmtShort(wd.effectiveExpiry)}` : `${wd.daysLeft}d`}</span>
+      {wd.needsExtension && <span className="badge b-amber" style={{ padding: '1px 6px', fontSize: 10 }} title="6-month extension still available">extend</span>}
+      {wd.extensionUsed && <span className="badge b-violet" style={{ padding: '1px 6px', fontSize: 10 }}>ext used</span>}
     </span>
   );
 }
@@ -231,14 +233,14 @@ function WslDetail({ p, wd, canWrite, onWslAction }) {
       <h6>Will Serve Letter — IID</h6>
       <div className="wsl-strip">
         <div className="wsl-box">
-          <div className="wb-lab">Days left</div>
-          <div className="wb-val" style={{ color: fill }}>{wd.state === 'expired' ? 'Expired' : `${wd.daysLeft}d`}</div>
-          <div className="wb-sub">expires {fmt(wd.effectiveExpiry)}</div>
+          <div className="wb-lab">Status</div>
+          <div className="wb-val" style={{ color: 'var(--ok)', fontFamily: 'inherit', fontSize: 15 }}>Sent</div>
+          <div className="wb-sub">issued {fmtShort(wd.issued)}</div>
         </div>
         <div className="wsl-box">
-          <div className="wb-lab">Issued</div>
-          <div className="wb-val">{fmtShort(wd.issued)}</div>
-          <div className="wb-sub">{parseDate(wd.issued).getFullYear()} · 1yr term</div>
+          <div className="wb-lab">{wd.state === 'expired' ? 'Past expiry' : 'Days left'}</div>
+          <div className="wb-val" style={{ color: fill }}>{wd.state === 'expired' ? `${Math.abs(wd.daysLeft)}d` : `${wd.daysLeft}d`}</div>
+          <div className="wb-sub">expire{wd.state === 'expired' ? 'd' : 's'} {fmt(wd.effectiveExpiry)}</div>
         </div>
         <div className="wsl-box">
           <div className="wb-lab">Extension</div>
@@ -607,7 +609,7 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
         <div className="panel-hd"><h2>IID Will Serve Letters</h2><span className="meta">{rows.length} · sorted by urgency</span></div>
         <div className="grid-scroll">
           <table className="grid">
-            <thead><tr><th>Project</th><th>Client</th><th>City</th><th>Issued</th><th>Expires</th><th>Extension</th><th style={{ textAlign: 'right' }}>Days left</th><th></th></tr></thead>
+            <thead><tr><th>Project</th><th>Client</th><th>City</th><th>Issued</th><th>Expires</th><th>Extension</th><th style={{ textAlign: 'right' }}>Status</th><th></th></tr></thead>
             <tbody>
               {rows.map(({ p, wd }) => {
                 const canExtend = !wd.extensionUsed && wd.state !== 'expired';
@@ -877,9 +879,25 @@ function buildNotifications(projects) {
   projects.forEach(p => {
     const wd = deriveWsl(p.wsl);
     if (wd) {
-      if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${p.name}`, sub: `Lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
+      if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${p.name}`, sub: `Sent ${fmtShort(wd.issued)} · lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
       else if (wd.state === 'critical') out.push({ id: `wsl-crit-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: wd.extensionUsed ? 'No extensions remain' : 'Extension still available', ts: TODAY });
       else if (wd.state === 'warning') out.push({ id: `wsl-warn-${p.id}`, pid: p.id, sev: 'warn', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: `Expiry ${fmtShort(wd.effectiveExpiry)}`, ts: TODAY });
+      // Filing the one 6-month extension is time-critical and easy to miss, so it
+      // gets its own escalating alert on top of the expiry countdown above.
+      if (wd.needsExtension) {
+        out.push({
+          id: `wsl-ext-${p.id}`, pid: p.id,
+          sev: wd.state === 'expired' || wd.state === 'critical' ? 'crit' : 'warn',
+          icon: 'clock',
+          title: wd.state === 'expired'
+            ? `Extension window closing — ${p.name}`
+            : `File the 6-month WSL extension — ${p.name}`,
+          sub: wd.state === 'expired'
+            ? `WSL lapsed ${fmtShort(wd.effectiveExpiry)} — the unused 6-month extension is the fastest route back`
+            : `${wd.daysLeft}d left · extends expiry to ${fmtShort(addMonths(wd.effectiveExpiry, 6))}`,
+          ts: TODAY,
+        });
+      }
     }
     p.tasks.forEach(t => {
       if (t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0) out.push({ id: `due-${p.id}-${t._key || t.taskId}`, pid: p.id, sev: 'warn', icon: 'clock', title: `Task overdue — ${t.name}`, sub: `${p.name} · due ${fmtShort(t.due)} · ${daysBetween(t.due, TODAY)}d late`, ts: t.due });
