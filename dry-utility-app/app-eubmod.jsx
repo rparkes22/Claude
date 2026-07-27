@@ -1,4 +1,4 @@
-// Dry Utility App — Existing Utility Base module.
+// Dry Utility App — Existing Utility Plan module.
 // Follows Utility Research: plot each responding agency's facilities onto the
 // project base map. Per-utility plot status + overall deliverable stage.
 // Responsibility: Michael Schreiber (Dry Utility Manager).
@@ -28,12 +28,13 @@ function EubModule({ p, canWrite }) {
   const rows = (typeof getResearchRows === 'function' ? getResearchRows(p) : []);
   let jur = {}; try { jur = (JSON.parse(localStorage.getItem('msa_app_jurisdiction_v1')) || {})[p.id] || {}; } catch (e) {}
   const sources = rows.map(r => {
-    const none = jur[r.id] === 'none';
+    // nothing to plot when the agency reported no facilities or never responded
+    const none = jur[r.id] === 'none' || r.noResponse;
     return { r, none, plot: none ? 'na' : (st.plots[r.id] || 'todo') };
   });
   const plottable = sources.filter(s => !s.none);
   const plotted = plottable.filter(s => s.plot === 'done').length;
-  const researchDone = rows.length > 0 && rows.every(r => r.received);
+  const researchDone = rows.length > 0 && rows.every(r => r.received || r.noResponse);
 
   const setPlot = (r, val) => { if (!canWrite) return; save({ ...st, plots: { ...st.plots, [r.id]: val } }); };
   const setStage = (i) => {
@@ -44,7 +45,7 @@ function EubModule({ p, canWrite }) {
   return (
     <div className="panel">
       <div className="panel-hd">
-        <h2>Existing Utility Base <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— plot responses onto the base map</span></h2>
+        <h2>Existing Utility Plan <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— plot responses onto the base map</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="meta">{plottable.length ? `${plotted}/${plottable.length} plotted` : 'awaiting research'}</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink-3)' }}><span style={{ width: 18, height: 18, fontSize: 8.5, borderRadius: '50%', background: 'var(--primary-tint)', color: 'var(--primary)', display: 'inline-grid', placeItems: 'center', fontWeight: 700 }}>MS</span>Michael Schreiber</span>
@@ -53,7 +54,7 @@ function EubModule({ p, canWrite }) {
       {!researchDone && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--amber-tint)', fontSize: 12, color: 'var(--amber-ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ProjIcon name="clock" size={13} />
-          <span><b>Utility Research still in progress</b> — {rows.filter(r => !r.received).length} response{rows.filter(r => !r.received).length === 1 ? '' : 's'} outstanding. Facilities can be plotted as responses arrive.</span>
+          <span><b>Utility Research still in progress</b> — {rows.filter(r => !r.received && !r.noResponse).length} response{rows.filter(r => !r.received && !r.noResponse).length === 1 ? '' : 's'} outstanding. Facilities can be plotted as responses arrive.</span>
         </div>
       )}
       {/* deliverable stage stepper */}
@@ -83,9 +84,9 @@ function EubModule({ p, canWrite }) {
               return (
                 <tr key={r.id} style={none ? { opacity: 0.55 } : null}>
                   <td style={{ paddingLeft: 16, fontWeight: 600, color: 'var(--ink)' }}>{r.label}</td>
-                  <td>{r.received ? <span className="badge b-ok" style={{ fontSize: 10 }}><span className="badge-dot"></span>Received {fmtShort(r.received)}</span> : <span className="badge b-amber" style={{ fontSize: 10 }}><span className="badge-dot"></span>Awaiting response</span>}</td>
+                  <td>{r.received ? <span className="badge b-ok" style={{ fontSize: 10 }}><span className="badge-dot"></span>Received {fmtShort(r.received)}</span> : r.noResponse ? <span className="badge b-gray" style={{ fontSize: 10 }}><span className="badge-dot"></span>No response</span> : <span className="badge b-amber" style={{ fontSize: 10 }}><span className="badge-dot"></span>Awaiting response</span>}</td>
                   <td>
-                    {none ? <span className="badge b-gray" style={{ fontSize: 10 }}>No facilities — N/A</span>
+                    {none ? <span className="badge b-gray" style={{ fontSize: 10 }}>{r.noResponse ? "No response — N/A" : "No facilities — N/A"}</span>
                       : canWrite ? (
                         <select className="select" style={{ width: 130, height: 26, fontSize: 11.5, paddingLeft: 8, fontWeight: 600, color: plot === 'done' ? 'var(--ok)' : plot === 'prog' ? 'var(--amber)' : 'var(--ink-3)' }} value={plot} onChange={e => setPlot(r, e.target.value)} disabled={!r.received && plot === 'todo' && false}>
                           <option value="todo">Not started</option>

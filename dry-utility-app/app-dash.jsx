@@ -146,7 +146,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
   }));
   // research letters are Domonique's responsibility — outstanding ones surface in her task list
   if (currentUser.id === 'u2') projects.forEach(p => {
-    const waiting = (typeof getResearchRows === 'function' ? getResearchRows(p) : []).filter(r => !r.received && (r.owner || 'u2') === 'u2');
+    const waiting = (typeof getResearchRows === 'function' ? getResearchRows(p) : []).filter(r => !r.received && !r.noResponse && (r.owner || 'u2') === 'u2');
     if (waiting.length) myTasks.push({ p, t: { name: `Utility research follow-up — ${waiting.length} letter${waiting.length === 1 ? '' : 's'} outstanding`, status: 'review', due: null, research: true } });
   });
   myTasks.sort((a, b) => {
@@ -207,7 +207,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
     // research letters count toward Domonique's load
     const dm = rows.find(x => x.u.id === 'u2');
     if (dm) projects.forEach(p => {
-      const waiting = (typeof getResearchRows === 'function' ? getResearchRows(p) : []).filter(r => !r.received && (r.owner || 'u2') === 'u2');
+      const waiting = (typeof getResearchRows === 'function' ? getResearchRows(p) : []).filter(r => !r.received && !r.noResponse && (r.owner || 'u2') === 'u2');
       if (waiting.length) dm.open++;
     });
     return rows.sort((a, b) => b.open - a.open);

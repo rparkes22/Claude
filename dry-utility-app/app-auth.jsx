@@ -46,10 +46,9 @@ function LoginScreen({ users, onLogin }) {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-mark">M</div>
+          <img src="assets/msa-logo.svg" alt="MSA Consulting, Inc." style={{ width: 186, height: 'auto', display: 'block' }} />
           <div>
-            <div className="login-name">MSA Consulting</div>
-            <div className="login-tag">Dry Utility Division</div>
+            <div className="login-tag" style={{ paddingLeft: 2 }}>Dry Utility Division</div>
           </div>
         </div>
         <h2 className="login-h">Sign in to continue</h2>

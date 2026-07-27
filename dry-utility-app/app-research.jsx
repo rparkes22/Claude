@@ -1,6 +1,6 @@
 // Dry Utility App — Utility Research page: every letter across every project, one view.
 function ResearchPage({ projects, onOpenProject }) {
-  const [filter, setFilter] = React.useState('all'); // all | waiting | overdue | received
+  const [filter, setFilter] = React.useState('all'); // all | waiting | overdue | received | noresp
   const [q, setQ] = React.useState('');
   const rows = React.useMemo(() => {
     const out = [];
@@ -9,15 +9,18 @@ function ResearchPage({ projects, onOpenProject }) {
         out.push({ p, r, days: daysBetween(r.sent, TODAY) });
       });
     });
-    return out.sort((a, b) => (a.r.received ? 1 : 0) - (b.r.received ? 1 : 0) || b.days - a.days);
+    const res = (x) => (x.r.received || x.r.noResponse) ? 1 : 0;
+    return out.sort((a, b) => res(a) - res(b) || b.days - a.days);
   }, [projects]);
-  const waiting = rows.filter(x => !x.r.received);
+  const waiting = rows.filter(x => !x.r.received && !x.r.noResponse);
   const overdue = waiting.filter(x => x.days > 45);
   const received = rows.filter(x => x.r.received);
+  const noResp = rows.filter(x => x.r.noResponse && !x.r.received);
   const shown = rows.filter(x => {
-    if (filter === 'waiting' && x.r.received) return false;
-    if (filter === 'overdue' && (x.r.received || x.days <= 45)) return false;
+    if (filter === 'waiting' && (x.r.received || x.r.noResponse)) return false;
+    if (filter === 'overdue' && (x.r.received || x.r.noResponse || x.days <= 45)) return false;
     if (filter === 'received' && !x.r.received) return false;
+    if (filter === 'noresp' && !(x.r.noResponse && !x.r.received)) return false;
     if (q.trim()) {
       const s = q.toLowerCase();
       if (!(x.p.name.toLowerCase().includes(s) || x.p.code.toLowerCase().includes(s) || x.r.label.toLowerCase().includes(s) || (AGENCIES[x.r.agency]?.name || '').toLowerCase().includes(s))) return false;
@@ -32,11 +35,12 @@ function ResearchPage({ projects, onOpenProject }) {
   );
   return (
     <div>
-      <div className="kpis" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+      <div className="kpis" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
         <KPI id="all" n={rows.length} lab="Letters sent" tint="var(--primary-tint)" color="var(--primary)" icon="file" />
         <KPI id="waiting" n={waiting.length} lab="Awaiting response" tint="var(--amber-tint)" color="var(--amber)" icon="clock" />
         <KPI id="overdue" n={overdue.length} lab="Waiting 45+ days" tint="var(--warn-tint)" color="var(--warn)" icon="alert" />
         <KPI id="received" n={received.length} lab="Responses received" tint="var(--ok-tint, rgba(22,163,74,0.08))" color="var(--ok)" icon="check" />
+        <KPI id="noresp" n={noResp.length} lab="No response" tint="var(--gray-tint)" color="var(--ink-3)" icon="x" />
       </div>
       <div className="toolbar">
         <div className="search-box">
@@ -54,7 +58,7 @@ function ResearchPage({ projects, onOpenProject }) {
               {shown.map(({ p, r, days }, i) => {
                 const a = AGENCIES[r.agency];
                 return (
-                  <tr key={i} className="row-main" style={{ cursor: 'pointer' }} onClick={() => onOpenProject(p.id)}>
+                  <tr key={i} className="row-main" style={{ cursor: 'pointer', opacity: r.noResponse && !r.received ? 0.72 : 1 }} onClick={() => onOpenProject(p.id)}>
                     <td className="col-project">
                       <div className="proj-info">
                         <div className="proj-name">{p.name}</div>
@@ -65,7 +69,7 @@ function ResearchPage({ projects, onOpenProject }) {
                     <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{a && <span className="util-tag util-iid mono">{a.short}</span>}<span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{r.agency === 'cvwd' ? 'CVWD online portal' : r.to}</span></span></td>
                     <td><span className={`badge ${r.agency === 'cvwd' ? 'b-blue' : 'b-gray'}`} style={{ fontSize: 10 }}>{r.agency === 'cvwd' ? 'Portal' : 'Email'}</span></td>
                     <td className="mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmtShort(r.sent)}</td>
-                    <td><span className={`badge ${r.received ? 'b-ok' : days > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? 'Received' : `Waiting · ${days}d`}</span></td>
+                    <td><span className={`badge ${r.received ? 'b-ok' : r.noResponse ? 'b-gray' : days > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? 'Received' : r.noResponse ? 'No response' : `Waiting · ${days}d`}</span></td>
                     <td className="mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{r.received ? fmtShort(r.received) : '—'}</td>
                   </tr>
                 );

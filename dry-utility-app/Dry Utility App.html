@@ -79,7 +79,9 @@
   /* ===== APP SHELL ===== */
   .shell { display: grid; grid-template-columns: 216px 1fr; min-height: 100vh; }
   .sidenav { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
-  .sn-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; }
+  .sn-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 4px 8px 16px; }
+  .sn-logo { display: block; width: 100%; max-width: 168px; height: auto; }
+  .sn-brand .sn-sub { padding-left: 38px; }
   .sn-mark { width: 30px; height: 30px; background: var(--ink); color: white; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
   .sn-name { font-weight: 700; font-size: 14px; line-height: 1.1; }
   .sn-sub { font-size: 10.5px; color: var(--ink-3); }

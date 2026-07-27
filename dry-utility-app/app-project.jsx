@@ -33,12 +33,13 @@ function InfoFld({ label, value, onChange, ph, onEnter }) {
   );
 }
 function InfoEditModal({ p, onClose, onSave, onDelete }) {
-  const [f, setF] = React.useState({ code: p.code, name: p.name, client: p.client, street: p.location.street, city: p.location.city, state: p.location.state, zip: p.location.zip, utility: p.utility || '', apn: p.apn || '', mapRef: p.mapRef || '', acreage: p.acreage || '', contractDate: p.contractDate || '' });
+  const cc = p.clientContact || {};
+  const [f, setF] = React.useState({ code: p.code, name: p.name, client: p.client, clientContact: cc.name || '', clientEmail: cc.email || '', clientPhone: cc.phone || '', street: p.location.street, city: p.location.city, state: p.location.state, zip: p.location.zip, utility: p.utility || '', apn: p.apn || '', mapRef: p.mapRef || '', acreage: p.acreage || '', contractDate: p.contractDate || '' });
   const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
   const valid = f.code.trim() && f.name.trim() && f.client.trim();
   const save = () => {
     if (!valid) return;
-    onSave({ code: f.code.trim(), name: f.name.trim(), client: f.client.trim(), utility: f.utility.trim(), apn: f.apn.trim(), mapRef: f.mapRef.trim(), acreage: f.acreage.trim(), contractDate: f.contractDate || null, location: { street: f.street.trim(), city: f.city.trim(), state: f.state.trim(), zip: f.zip.trim() } });
+    onSave({ code: f.code.trim(), name: f.name.trim(), client: f.client.trim(), clientContact: { name: f.clientContact.trim(), email: f.clientEmail.trim(), phone: f.clientPhone.trim() }, utility: f.utility.trim(), apn: f.apn.trim(), mapRef: f.mapRef.trim(), acreage: f.acreage.trim(), contractDate: f.contractDate || null, location: { street: f.street.trim(), city: f.city.trim(), state: f.state.trim(), zip: f.zip.trim() } });
   };
   const F = (k, label, ph) => <InfoFld label={label} ph={ph} value={f[k]} onChange={set(k)} onEnter={save} />;
   return (
@@ -61,6 +62,11 @@ function InfoEditModal({ p, onClose, onSave, onDelete }) {
                 <option value="IID">IID</option><option value="SCE">SCE</option>
               </select>
             </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 10px' }}>
+            {F('clientContact', 'Client contact')}
+            {F('clientEmail', 'Contact email')}
+            {F('clientPhone', 'Contact phone')}
           </div>
           {F('street', 'Street address')}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 70px 100px', gap: '0 10px' }}>
@@ -201,21 +207,22 @@ function AgencyPanel({ agency, tasks, p, canWrite, users, userLoads, currentUser
   const [customName, setCustomName] = React.useState('');
   const [editKey, setEditKey] = React.useState(null);
   const [editName, setEditName] = React.useState('');
+  const [newDue, setNewDue] = React.useState('');
   const catalog = tasksForAgency(agency.id).filter(ct => !tasks.some(t => t.taskId === ct.id));
-  const startAdd = () => { setPickId(catalog[0]?.id || 'custom'); setCustomName(''); setAdding(true); };
+  const startAdd = () => { setPickId(catalog[0]?.id || 'custom'); setCustomName(''); setNewDue(''); setAdding(true); };
   const save = () => {
     let task;
     if (pickId === 'custom') {
       const name = customName.trim();
       if (!name) return;
-      task = { agency: agency.id, taskId: 'custom-' + Date.now(), name, status: 'none', date: null };
+      task = { agency: agency.id, taskId: 'custom-' + Date.now(), name, status: 'none', date: null, due: newDue || null };
     } else {
       const ct = catalog.find(c => c.id === pickId);
       if (!ct) return;
-      task = { agency: agency.id, taskId: ct.id, name: ct.name, status: 'none', date: null };
+      task = { agency: agency.id, taskId: ct.id, name: ct.name, status: 'none', date: null, due: newDue || null };
     }
     onTaskAdd(p.id, task);
-    setAdding(false);
+    setAdding(false); setNewDue('');
   };
   return (
     <div className="panel">
@@ -238,6 +245,10 @@ function AgencyPanel({ agency, tasks, p, canWrite, users, userLoads, currentUser
           {pickId === 'custom' && (
             <input className="input" style={{ height: 30, fontSize: 12.5, flex: 1, minWidth: 180 }} autoFocus placeholder="Task name" value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
           )}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+            Deadline
+            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newDue} onChange={e => setNewDue(e.target.value)} title="Optional deadline for this task" />
+          </label>
           <button className="btn btn-primary btn-sm" onClick={save} disabled={pickId === 'custom' && !customName.trim()}>Add</button>
           <button className="btn btn-sm" onClick={() => setAdding(false)}>Cancel</button>
         </div>
@@ -351,20 +362,36 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
     persistResearchFu(next);
     setFu(next[p.id]);
   };
+  // Same override shape as getResearchRows: legacy string/null = received date,
+  // or { sent, received, noResponse } once dates are edited / closed as no-response.
   const rows = [...(p.research || []), ...added].map(r => {
     const o = ov[p.id] || {};
-    return Object.prototype.hasOwnProperty.call(o, r.id) ? { ...r, received: o[r.id] } : r;
+    if (!Object.prototype.hasOwnProperty.call(o, r.id)) return { ...r, noResponse: false };
+    const v = o[r.id];
+    if (v === null || typeof v === 'string') return { ...r, received: v, noResponse: false };
+    return { ...r, sent: v.sent || r.sent, received: v.received || null, noResponse: !!v.noResponse };
   });
-  const done = rows.filter(r => r.received).length;
+  const resolved = (r) => !!(r.received || r.noResponse);
+  const done = rows.filter(resolved).length;
+  const receivedCount = rows.filter(r => r.received).length;
+  const noRespCount = rows.filter(r => r.noResponse && !r.received).length;
   const researchComplete = rows.length > 0 && done === rows.length;
-  // research complete → auto-create the follow-on "Existing Utility Base" task (once)
+  // write a full override entry for a row, preserving the other fields
+  const patchRow = (r, patch) => {
+    if (!canWrite) return;
+    const cur = { sent: r.sent, received: r.received || null, noResponse: !!r.noResponse };
+    const next = { ...ov, [p.id]: { ...(ov[p.id] || {}), [r.id]: { ...cur, ...patch } } };
+    persist(next);
+    window.dispatchEvent(new Event('msa-research-updated'));
+  };
+  // research complete → auto-create the follow-on "Existing Utility Plan" task (once)
   const EUB_KEY = 'msa_app_eub_created_v1';
-  const eubExists = p.tasks.some(t => /existing utility base/i.test(t.name));
+  const eubExists = p.tasks.some(t => /existing utility (base|plan)/i.test(t.name));
   React.useEffect(() => {
     if (!researchComplete || !canWrite || !onTaskAdd || eubExists) return;
     let created = {}; try { created = JSON.parse(localStorage.getItem(EUB_KEY)) || {}; } catch (e) {}
     if (created[p.id]) return; // was created before (may have been deleted on purpose)
-    onTaskAdd(p.id, { agency: null, taskId: 'eub-' + Date.now(), name: 'Existing Utility Base', status: 'none', date: null, assignee: 'u1' });
+    onTaskAdd(p.id, { agency: null, taskId: 'eub-' + Date.now(), name: 'Existing Utility Plan', status: 'none', date: null, assignee: 'u1' });
     created[p.id] = true; try { localStorage.setItem(EUB_KEY, JSON.stringify(created)); } catch (e) {}
   }, [researchComplete, eubExists, canWrite, p.id]);
   // letter format requirements — every research letter needs these fields
@@ -386,17 +413,14 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
   };
   const jurOf = (r) => (jur[p.id] || {})[r.id] || null;
   const catOf = (label) => (label.split(/\(|—|\//)[0] || label).trim();
-  const toggle = (r) => {
-    if (!canWrite) return;
-    const next = { ...ov, [p.id]: { ...(ov[p.id] || {}), [r.id]: r.received ? null : TODAY.toISOString().slice(0, 10) } };
-    persist(next);
-  };
+  const toggle = (r) => patchRow(r, r.received ? { received: null } : { received: TODAY.toISOString().slice(0, 10), noResponse: false });
+  const toggleNoResponse = (r) => patchRow(r, r.noResponse ? { noResponse: false } : { noResponse: true, received: null });
   return (
     <div className="panel">
       <div className="panel-hd">
         <h2>Utility research <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— jurisdiction verification</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="meta">{rows.length ? `${done}/${rows.length} received${done < rows.length ? ` · ${daysBetween(rows[0].sent, TODAY)}d since letters sent` : ''}` : 'no letters yet'}</span>
+          <span className="meta">{rows.length ? `${receivedCount}/${rows.length} received${noRespCount ? ` · ${noRespCount} no response` : ''}${done < rows.length ? ` · ${daysBetween(rows[0].sent, TODAY)}d since letters sent` : ''}` : 'no letters yet'}</span>
           {canWrite && onGenerate && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={onGenerate}>Generate letters</button>}
         </div>
       </div>
@@ -408,8 +432,8 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
       {researchComplete && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--ok-tint, rgba(22,163,74,0.07))', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
           <ProjIcon name="check" size={13} />
-          <span><b>Utility Research complete</b> — all {rows.length} responses received.</span>
-          <span style={{ color: 'var(--ink-3)' }}>{eubExists ? 'Next task “Existing Utility Base” is on the task list — assigned to Michael Schreiber.' : canWrite ? 'Creating “Existing Utility Base” task for Michael Schreiber…' : 'Next step: Existing Utility Base (Michael Schreiber).'}</span>
+          <span><b>Utility Research complete</b> — {receivedCount} of {rows.length} response{rows.length === 1 ? '' : 's'} received{noRespCount ? `, ${noRespCount} closed as no response` : ''}.</span>
+          <span style={{ color: 'var(--ink-3)' }}>{eubExists ? 'Next task “Existing Utility Plan” is on the task list — assigned to Michael Schreiber.' : canWrite ? 'Creating “Existing Utility Plan” task for Michael Schreiber…' : 'Next step: Existing Utility Plan (Michael Schreiber).'}</span>
         </div>
       )}
       <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11.5 }}>
@@ -433,8 +457,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
             const a = AGENCIES[r.agency];
             const j = jurOf(r);
             const confirmed = r.received && j === 'has';
-            const cleared = r.received && j === 'none';
-            const pending = !r.received;
+            const cleared = (r.received && j === 'none') || r.noResponse;
             const style = confirmed
               ? { border: '1px solid var(--ok)', background: 'var(--ok-tint, rgba(22,163,74,0.07))' }
               : cleared
@@ -447,7 +470,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
                 <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ink-4)' }}>{catOf(r.label)}</div>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', margin: '2px 0 3px', textDecoration: cleared ? 'line-through' : 'none' }}>{a ? a.short : r.label}</div>
                 <div style={{ fontSize: 10.5, fontWeight: 600, color: confirmed ? 'var(--ok)' : cleared ? 'var(--ink-4)' : r.received ? 'var(--blue)' : 'var(--amber-ink)' }}>
-                  {confirmed ? 'Has facilities' : cleared ? 'None in area' : r.received ? 'Received — outcome?' : `Awaiting · ${daysBetween(r.sent, TODAY)}d`}
+                  {r.noResponse ? 'No response' : confirmed ? 'Has facilities' : cleared ? 'None in area' : r.received ? 'Received — outcome?' : `Awaiting · ${daysBetween(r.sent, TODAY)}d`}
                 </div>
               </div>
             );
@@ -460,27 +483,46 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
           <tbody>
             {rows.map(r => {
               const a = AGENCIES[r.agency];
-              const waiting = !r.received;
+              const waiting = !resolved(r);
               const days = daysBetween(r.sent, TODAY);
               return (
-                <tr key={r.id}>
+                <tr key={r.id} style={r.noResponse ? { opacity: 0.72 } : null}>
                   <td style={{ paddingLeft: 16, fontWeight: 600, color: 'var(--ink)' }}>{r.label}{r.logged && <span className="badge b-teal" style={{ marginLeft: 8, fontSize: 10 }}>logged{r.by ? ` · ${r.by}` : ''}</span>}</td>
                   <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{a && <span className="util-tag util-iid mono">{a.short}</span>}<span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>{r.agency === 'cvwd' ? 'CVWD online portal' : r.to}</span></span></td>
                   <td><span className={`badge ${r.agency === 'cvwd' ? 'b-blue' : 'b-gray'}`} style={{ fontSize: 10 }}>{r.agency === 'cvwd' ? 'Portal' : 'Email'}</span></td>
-                  <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>{fmtShort(r.sent)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span className={`badge ${r.received ? 'b-ok' : days > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? `Received ${fmtShort(r.received)}` : `Waiting · ${days}d`}</span>
-                      {!r.received && fu[r.id] && <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>f/u {fmtShort(fu[r.id])}</span>}
-                      {canWrite && <button className="btn btn-ghost btn-sm" style={{ height: 22, fontSize: 11, padding: '0 7px' }} onClick={() => toggle(r)}>{waiting ? 'Mark received' : 'Undo'}</button>}
-                      {canWrite && r.received && (
-                        <span style={{ display: 'inline-flex', gap: 4 }}>
-                          <button className={`btn btn-sm ${jurOf(r) === 'has' ? 'btn-primary' : 'btn-ghost'}`} style={{ height: 22, fontSize: 10.5, padding: '0 7px' }} title="Agency confirmed facilities / jurisdiction in the area" onClick={() => setJurisdiction(r, jurOf(r) === 'has' ? null : 'has')}>Has facilities</button>
-                          <button className={`btn btn-sm ${jurOf(r) === 'none' ? 'btn-primary' : 'btn-ghost'}`} style={{ height: 22, fontSize: 10.5, padding: '0 7px' }} title="Agency confirmed no facilities in the area" onClick={() => setJurisdiction(r, jurOf(r) === 'none' ? null : 'none')}>None</button>
-                        </span>
+                    {canWrite ? (
+                      <input type="date" className="input" style={{ height: 26, fontSize: 11.5, width: 132, padding: '0 7px' }} value={r.sent || ''} title="Date the letter went out — editable" onChange={e => patchRow(r, { sent: e.target.value })} />
+                    ) : <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{fmtShort(r.sent)}</span>}
+                  </td>
+                  <td style={{ minWidth: 268 }}>
+                    {/* line 1: the response date (or no-response state); line 2: the actions for it */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                        {r.noResponse ? (
+                          <span className="badge b-gray"><span className="badge-dot"></span>No response</span>
+                        ) : canWrite ? (
+                          <input type="date" className="input" style={{ height: 26, fontSize: 11.5, width: 132, padding: '0 7px', borderColor: r.received ? 'var(--ok)' : days > 45 ? 'var(--warn)' : 'var(--border)' }} value={r.received || ''} title="Date the response came back — editable" onChange={e => patchRow(r, { received: e.target.value || null, noResponse: false })} />
+                        ) : (
+                          <span className={`badge ${r.received ? 'b-ok' : days > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? `Received ${fmtShort(r.received)}` : `Waiting · ${days}d`}</span>
+                        )}
+                        {!r.received && !r.noResponse && <span className={`badge ${days > 45 ? 'b-warn' : 'b-amber'}`} style={{ fontSize: 10 }}><span className="badge-dot"></span>{days}d</span>}
+                        {!resolved(r) && fu[r.id] && <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>f/u {fmtShort(fu[r.id])}</span>}
+                      </div>
+                      {canWrite && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {!r.received && !r.noResponse && <button className="btn btn-ghost btn-sm" style={{ height: 21, fontSize: 10.5, padding: '0 6px' }} title="Stamp today's date as the response date" onClick={() => toggle(r)}>Today</button>}
+                          {r.received && (
+                            <React.Fragment>
+                              <button className={`btn btn-sm ${jurOf(r) === 'has' ? 'btn-primary' : 'btn-ghost'}`} style={{ height: 21, fontSize: 10.5, padding: '0 6px' }} title="Agency confirmed facilities / jurisdiction in the area" onClick={() => setJurisdiction(r, jurOf(r) === 'has' ? null : 'has')}>Has facilities</button>
+                              <button className={`btn btn-sm ${jurOf(r) === 'none' ? 'btn-primary' : 'btn-ghost'}`} style={{ height: 21, fontSize: 10.5, padding: '0 6px' }} title="Agency confirmed no facilities in the area" onClick={() => setJurisdiction(r, jurOf(r) === 'none' ? null : 'none')}>None</button>
+                            </React.Fragment>
+                          )}
+                          <button className={`btn btn-sm ${r.noResponse ? 'btn-primary' : 'btn-ghost'}`} style={{ height: 21, fontSize: 10.5, padding: '0 6px' }} title="Agency never responded — closes the letter out without a response" onClick={() => toggleNoResponse(r)}>{r.noResponse ? 'Undo' : 'No response'}</button>
+                          {waiting && daysBetween(fu[r.id] || r.sent, TODAY) >= 30 && <button className="btn btn-ghost btn-sm" style={{ height: 21, fontSize: 10.5, padding: '0 6px' }} title="Record that you contacted this agency — resets the reminder" onClick={() => logFu(r)}>Log follow-up</button>}
+                        </div>
                       )}
-                      {canWrite && waiting && daysBetween(fu[r.id] || r.sent, TODAY) >= 30 && <button className="btn btn-sm" style={{ height: 22, fontSize: 11, padding: '0 7px' }} title="Record that you contacted this agency — resets the reminder" onClick={() => logFu(r)}>Log follow-up</button>}
-                    </span>
+                    </div>
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: 16, whiteSpace: 'nowrap' }}>
                     {r.file && <a href={r.file} target="_blank" rel="noopener" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}><ProjIcon name="file" size={11} />PDF</a>}
@@ -516,8 +558,8 @@ function getProjectModules(p) {
   return { ...defaults, ...(loadModuleOv()[p.id] || {}) };
 }
 const MODULE_DEFS = [
-  { id: 'research', name: 'Utility Research', desc: 'Standardized letters to every agency in the project region to verify jurisdiction — sent log, responses, and jurisdiction summary. Typically 6–8 weeks from contract execution; completion creates the Existing Utility Base task.' },
-  { id: 'eub', name: 'Existing Utility Base', desc: 'Plot each agency\u2019s research response onto the project base map — per-utility plot log and deliverable stage through QC to issue. Michael Schreiber.' },
+  { id: 'research', name: 'Utility Research', desc: 'Standardized letters to every agency in the project region to verify jurisdiction — sent log, responses, and jurisdiction summary. Typically 6–8 weeks from contract execution; completion creates the Existing Utility Plan task.' },
+  { id: 'eub', name: 'Existing Utility Plan', desc: 'Plot each agency\u2019s research response onto the project base map — per-utility plot log and deliverable stage through QC to issue. Michael Schreiber.' },
   { id: 'coordination', name: 'Utility Coordination', desc: 'Hand-off tracking between agencies, engineering, and the client — enable only the tracks the project needs: SCE Rule 15 / Rule 16, Gas Co backbone / meters, Frontier, Spectrum.' },
 ];
 function ModulesPanel({ p, modules, canWrite, onToggle }) {
@@ -547,7 +589,7 @@ function ModulesPanel({ p, modules, canWrite, onToggle }) {
   );
 }
 
-// ---- project tasks panel (user tasks, incl. auto-created follow-ons like Existing Utility Base) ----
+// ---- project tasks panel (user tasks, incl. auto-created follow-ons like Existing Utility Plan) ----
 // ---- project timeline: contract → research (6–8 wks) → existing utility base → coordination → complete ----
 function ProjTimeline({ p, modules }) {
   const rows = getResearchRows(p);
@@ -564,7 +606,7 @@ function ProjTimeline({ p, modules }) {
   const stages = [
     { lab: 'Contract executed', state: 'done', sub: contractD ? fmtShort(contractD) : firstSent ? `letters out ${fmtShort(firstSent)}` : 'date not set' },
     modules.research !== false && { lab: 'Utility Research', state: lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !lastRecv && firstSent && resWeeks > 8 },
-    { lab: 'Existing Utility Base', state: eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
+    { lab: 'Existing Utility Plan', state: eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
     modules.coordination && { lab: 'Utility Coordination', state: cm.length ? (cmOpen ? 'active' : 'done') : 'todo', sub: cm.length ? `${cmOpen} open · ${cm.length - cmOpen} closed` : 'not started' },
     wd && { lab: 'Will Serve', state: wd.state === 'expired' ? 'late' : wd.state === 'ok' ? 'done' : 'active', sub: wd.state === 'expired' ? 'expired' : `${wd.daysLeft}d left`, late: wd.state === 'expired' || wd.state === 'critical' },
     { lab: 'Complete', state: p.phase === 'Complete' ? 'done' : 'todo', sub: p.phase === 'Complete' ? (p.completedOn ? fmtShort(p.completedOn) : 'archived') : p.phase },
@@ -593,36 +635,58 @@ function ProjTimeline({ p, modules }) {
   );
 }
 
-function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd }) {
+function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, wsl }) {
   const tasks = p.tasks.filter(t => t.user);
   const [adding, setAdding] = React.useState(false);
   const [name, setName] = React.useState('');
+  const [newDue, setNewDue] = React.useState('');
   const [editKey, setEditKey] = React.useState(null);
   const [editName, setEditName] = React.useState('');
   const save = () => {
     const n = name.trim();
     if (!n) return;
-    onTaskAdd(p.id, { agency: null, taskId: 'custom-' + Date.now(), name: n, status: 'none', date: null });
-    setAdding(false); setName('');
+    onTaskAdd(p.id, { agency: null, taskId: 'custom-' + Date.now(), name: n, status: 'none', date: null, due: newDue || null });
+    setAdding(false); setName(''); setNewDue('');
   };
   if (!tasks.length && !canWrite) return null;
   return (
     <div className="panel">
       <div className="panel-hd">
-        <h2>Project tasks</h2>
+        <h2>Project tasks <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— Utility Coordination</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="meta">{tasks.length ? `${tasks.filter(t => t.status === 'ok').length}/${tasks.length} complete` : 'none'}</span>
           {canWrite && !adding && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => setAdding(true)}>+ Add task</button>}
         </div>
       </div>
-      {adding && (
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input className="input" autoFocus style={{ height: 30, fontSize: 12.5, flex: 1 }} placeholder="Task — e.g. Existing Utility Base" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={!name.trim()}>Add</button>
-          <button className="btn btn-sm" onClick={() => setAdding(false)}>Cancel</button>
+      {/* Coordination work is authorised by the Will Serve Letter — surface its state here. */}
+      {!wsl ? (
+        <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--amber-tint)', color: 'var(--amber-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ProjIcon name="clock" size={13} />
+          <span>No Will Serve Letter recorded yet — coordination tasks run off the WSL, which is valid <b>1 year</b> from issue with a <b>6-month extension</b> available.</span>
+        </div>
+      ) : wsl.state === 'expired' ? (
+        <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--warn-tint)', color: 'var(--warn-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ProjIcon name="clock" size={13} />
+          <span><b>Will Serve Letter expired {fmtShort(wsl.effectiveExpiry.toISOString().slice(0, 10))}</b>{wsl.extensionUsed ? ' — extension already used.' : ' — a 6-month extension is still available.'}</span>
+        </div>
+      ) : (
+        <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', fontSize: 11.5, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <ProjIcon name="check" size={12} />
+          <span>Authorised by the Will Serve Letter — <b style={{ color: 'var(--ink-2)' }}>{wsl.daysLeft}d</b> remaining{wsl.extensionUsed ? ' (6-month extension applied)' : ', 6-month extension available'}.</span>
         </div>
       )}
-      {tasks.length === 0 && !adding && <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>No tasks yet. Completing Utility Research adds “Existing Utility Base” automatically.</div>}
+      {adding && (
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="input" autoFocus style={{ height: 30, fontSize: 12.5, flex: 1, minWidth: 180 }} placeholder="Task — e.g. Existing Utility Plan" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+            Deadline
+            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newDue} onChange={e => setNewDue(e.target.value)} title="Optional deadline for this task" />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={!name.trim()}>Add</button>
+          <button className="btn btn-sm" onClick={() => { setAdding(false); setNewDue(''); }}>Cancel</button>
+        </div>
+      )}
+      {tasks.length === 0 && !adding && <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>No tasks yet. Completing Utility Research adds “Existing Utility Plan” automatically.</div>}
       {tasks.length > 0 && (
         <div style={{ padding: '4px 0' }}>
           {tasks.map((t, i) => {
@@ -649,7 +713,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
                 {canWrite ? (
                   <select className="select" style={{ width: 150, height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value || null)}>
                     <option value="">Unassigned</option>
-                    {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.open}${load.cap ? '/' + load.cap : ''})` : ''}</option>; })}
+                    {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load}${load.cap ? '/' + load.cap : ''})` : ''}</option>; })}
                   </select>
                 ) : u && <span className="meta">{u.name}</span>}
                 {canWrite ? (
@@ -804,7 +868,12 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
           </div>
           <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 12.5, color: 'var(--ink-3)', flexWrap: 'wrap', alignItems: 'center' }}>
             <span className="mono">{p.code}</span>
-            <span>{p.client}</span>
+            <span>
+              {p.client}
+              {p.clientContact && p.clientContact.name ? <span style={{ color: 'var(--ink-4)' }}> · {p.clientContact.name}</span> : null}
+            </span>
+            {p.clientContact && p.clientContact.email && <a href={`mailto:${p.clientContact.email}`} style={{ textDecoration: 'none', fontSize: 12 }} title="Client contact email">{p.clientContact.email}</a>}
+            {p.clientContact && p.clientContact.phone && <span className="mono" style={{ fontSize: 12 }} title="Client contact phone">{p.clientContact.phone}</span>}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ProjIcon name="pin" size={12} />{p.location.street}, {p.location.city}, {p.location.state} {p.location.zip}</span>
             <span className={`util-tag util-${(p.utility || '').toLowerCase() === 'sce' ? 'sce' : 'iid'}`}>{p.utility}</span>
             {p.apn && <span className="mono" title="Assessor's Parcel Number">APN {p.apn}</span>}
@@ -834,9 +903,9 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
 
           {modules.eub && <EubModule p={p} canWrite={canWrite} />}
 
-          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetDue={onTaskSetDue} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
-
           {modules.coordination && <CoordModule p={p} canWrite={canWrite} currentUser={currentUser} users={users} />}
+
+          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetDue={onTaskSetDue} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
 
           <div className="panel">
             <div className="panel-hd"><h2>Notes &amp; activity</h2><span className="meta">{activity.length} entries</span></div>

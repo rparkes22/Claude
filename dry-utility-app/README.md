@@ -18,6 +18,27 @@ python3 -m http.server 8000
 
 Sign in with one of the demo users on the login screen.
 
+## Workflow
+
+1. **Create the project** — number, name, client plus client contact (name/email/phone),
+   address, and the client's contract, which uploads on creation and lands in the
+   project's Contracts panel.
+2. **Utility Research** — generate the standard request letters for the selected
+   agencies. Each letter tracks the date it went out and the date the response came
+   back (both editable), or can be closed out as **No response** when an agency never
+   replies. No-response agencies are excluded from outstanding-letter counts and are
+   marked N/A on the Existing Utility Plan.
+3. **Existing Utility Plan** — created automatically once every letter is resolved;
+   plots each responding agency's facilities and tracks the deliverable through QC.
+4. **Utility Coordination** — driven by the Will Serve Letter, valid **1 year** from
+   issue with one **6-month extension**. Project tasks live here and can be given a
+   deadline when they are created.
+
+## Branding
+
+`assets/msa-logo.svg` is the nav/login lockup and is a placeholder built to match the
+letterhead. Drop the official artwork in at that same path to replace it everywhere.
+
 ## Data & attachments (Supabase)
 
 The app syncs its state to a Supabase backend (project `msa-project-tracker`,

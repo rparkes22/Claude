@@ -81,14 +81,23 @@ const locString = (l) => `${l.street}, ${l.city}, ${l.state} ${l.zip}`;
 
 // ===== TRACKER detail expansion =====
 // research rows for a project (seed + logged), with received overrides applied
+// Override entries are either the legacy shape (a received date string, or null)
+// or { sent, received, noResponse } once a date has been edited or the agency has
+// been marked as never responding. A letter is "resolved" when a response came
+// back or it was closed out as no-response.
 window.getResearchRows = function getResearchRows(p) {
   let ov = {}; try { ov = JSON.parse(localStorage.getItem('msa_app_research_v1')) || {}; } catch (e) {}
   const added = (typeof loadAddedResearch === 'function' ? (loadAddedResearch()[p.id] || []) : []);
+  const o = ov[p.id] || {};
   return [...(p.research || []), ...added].map(r => {
-    const o = ov[p.id] || {};
-    return Object.prototype.hasOwnProperty.call(o, r.id) ? { ...r, received: o[r.id] } : r;
+    if (!Object.prototype.hasOwnProperty.call(o, r.id)) return { ...r, noResponse: false };
+    const v = o[r.id];
+    if (v === null || typeof v === 'string') return { ...r, received: v, noResponse: false };
+    return { ...r, sent: v.sent || r.sent, received: v.received || null, noResponse: !!v.noResponse };
   });
 }
+// A letter no longer needs chasing once it is received or closed as no-response.
+window.researchResolved = function researchResolved(r) { return !!(r.received || r.noResponse); };
 
 function DetailPanel({ p, canWrite, onWslAction, showToast }) {
   const [tab, setTab] = React.useState('tasks');
@@ -759,7 +768,7 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
               const waiting = rows.length - got;
               return (
                 <>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>{got} of {rows.length} agency responses received.{waiting > 0 ? ` ${waiting} outstanding letter${waiting === 1 ? '' : 's'} — followed up by Domonique Moreno, Project Manager.` : ' Research phase complete — Existing Utility Base preparation with Michael Schreiber, Dry Utility Manager.'}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>{got} of {rows.length} agency responses received.{waiting > 0 ? ` ${waiting} outstanding letter${waiting === 1 ? '' : 's'} — followed up by Domonique Moreno, Project Manager.` : ' Research phase complete — Existing Utility Plan preparation with Michael Schreiber, Dry Utility Manager.'}</div>
                   <table className="rp-table">
                     <thead><tr><th>Utility</th><th>Letter sent</th><th>Status</th><th style={{ textAlign: 'right' }}>Received</th></tr></thead>
                     <tbody>
@@ -785,7 +794,7 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
             const plotted = rows.filter(r => (st.plots || {})[r.id] === 'done').length;
             return (
               <div className="section">
-                <div className="section-hd"><h2>Existing Utility Base</h2><span className="num">03</span></div>
+                <div className="section-hd"><h2>Existing Utility Plan</h2><span className="num">03</span></div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>
                   Deliverable stage: <b>{EUB_STAGES[st.stage]}</b>{st.stage === 3 && st.issued ? ` (${fmtShort(st.issued)})` : ''} · {plotted} of {rows.length} responding utilities plotted onto the base map. Prepared by Michael Schreiber, Dry Utility Manager.
                 </div>
@@ -1230,8 +1239,8 @@ function App() {
     <div className="shell">
       <nav className="sidenav">
         <div className="sn-brand">
-          <div className="sn-mark">M</div>
-          <div><div className="sn-name">MSA</div><div className="sn-sub">Dry Utility</div></div>
+          <img className="sn-logo" src="assets/msa-logo.svg" alt="MSA Consulting, Inc." />
+          <div className="sn-sub">Dry Utility Division</div>
         </div>
         {PAGES.map(pg => (
           <button key={pg.id} className={`sn-item ${page === pg.id && !openProject ? 'active' : ''}`} onClick={() => { setPage(pg.id); setOpenProjectId(null); }}>

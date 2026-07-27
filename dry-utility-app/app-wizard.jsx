@@ -24,17 +24,42 @@ const WIZ_STEPS = [
 
 function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
   const [step, setStep] = React.useState(1);
-  const [form, setForm] = React.useState({
-    code: '', name: '', client: '',
+  const BLANK = {
+    code: '', name: '', client: '', clientContact: '', clientEmail: '', clientPhone: '',
     street: '', city: '', state: 'CA', zip: '', contractDate: '',
-  });
+  };
+  const [form, setForm] = React.useState(BLANK);
   const [agencies, setAgencies] = React.useState([]);      // agency ids
   const [modules, setModules] = React.useState({ research: true, coordination: false });
+  const [contract, setContract] = React.useState(null);    // { name, size, type, url|dataUrl }
+  const [uploading, setUploading] = React.useState(false);
+  const contractRef = React.useRef(null);
   const [err, setErr] = React.useState(null);
 
   React.useEffect(() => {
-    if (open) { setStep(1); setForm({ code: '', name: '', client: '', street: '', city: '', state: 'CA', zip: '', contractDate: '' }); setAgencies([]); setModules({ research: true, coordination: false }); setErr(null); }
+    if (open) { setStep(1); setForm(BLANK); setAgencies([]); setModules({ research: true, coordination: false }); setContract(null); setUploading(false); setErr(null); }
   }, [open]);
+
+  // Client contract upload — goes to Supabase Storage when online, data URL otherwise.
+  const pickContract = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    setUploading(true);
+    const finish = (v) => { setContract(v); setUploading(false); };
+    const fallback = () => {
+      if (f.size <= 512 * 1024) {
+        const r = new FileReader();
+        r.onload = () => finish({ name: f.name, size: f.size, type: f.type, dataUrl: r.result });
+        r.onerror = () => finish({ name: f.name, size: f.size, type: f.type });
+        r.readAsDataURL(f);
+      } else finish({ name: f.name, size: f.size, type: f.type });
+    };
+    if (window.__msaUploadAttachment) {
+      window.__msaUploadAttachment(f, 'new-project').then(up => up ? finish(up) : fallback());
+    } else fallback();
+  };
+  const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' B';
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErr(null); };
 
@@ -78,12 +103,30 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
       ov[pid] = { research: !!modules.research, coordination: !!modules.coordination };
       localStorage.setItem('msa_app_modules_v1', JSON.stringify(ov));
     } catch (e) {}
+    // the signed client contract seeds the project's Contracts panel
+    if (contract) {
+      try {
+        const all = JSON.parse(localStorage.getItem('msa_app_contracts_v1')) || {};
+        all[pid] = [{
+          id: 'c' + Date.now(), title: 'Client contract', agency: '', amount: '',
+          status: form.contractDate ? 'executed' : 'sent', file: contract,
+          by: form.clientContact.trim() || form.client.trim(),
+          ts: form.contractDate || TODAY.toISOString().slice(0, 10),
+        }];
+        localStorage.setItem('msa_app_contracts_v1', JSON.stringify(all));
+      } catch (e) {}
+    }
     const utility = agencies.includes('iid') ? 'IID' : agencies.includes('sce') ? 'SCE' : '—';
     onCreate({
       id: pid,
       code: form.code.trim().toUpperCase(),
       name: form.name.trim(),
       client: form.client.trim(),
+      clientContact: {
+        name: form.clientContact.trim(),
+        email: form.clientEmail.trim(),
+        phone: form.clientPhone.trim(),
+      },
       location: { street: form.street.trim(), city: form.city, state: form.state, zip: form.zip.trim() },
       contractDate: form.contractDate || null,
       utility, pm: '—', phase: 'Lead',
@@ -137,6 +180,20 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                 <label>Project name <span className="req">*</span></label>
                 <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Mecca Substation Interconnect" />
               </div>
+              <div className="form-row-3">
+                <div className="field">
+                  <label>Client contact</label>
+                  <input className="input" value={form.clientContact} onChange={e => set('clientContact', e.target.value)} placeholder="Jane Ruiz" />
+                </div>
+                <div className="field">
+                  <label>Contact email</label>
+                  <input className="input" type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)} placeholder="jruiz@client.com" />
+                </div>
+                <div className="field">
+                  <label>Contact phone</label>
+                  <input className="input" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)} placeholder="760-555-0134" />
+                </div>
+              </div>
               <div className="field">
                 <label>Street address <span className="req">*</span></label>
                 <input className="input" value={form.street} onChange={e => set('street', e.target.value)} placeholder="1200 Industrial Way" />
@@ -165,6 +222,23 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                   <label>Contract executed</label>
                   <input type="date" className="input" value={form.contractDate} onChange={e => set('contractDate', e.target.value)} />
                 </div>
+              </div>
+              <div className="field" style={{ marginTop: 4 }}>
+                <label>Client contract</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-sm" onClick={() => contractRef.current && contractRef.current.click()} disabled={uploading}>
+                    <WizIcon name="task" size={12} />{uploading ? 'Uploading…' : contract ? 'Replace file' : 'Attach contract (PDF)'}
+                  </button>
+                  <input ref={contractRef} type="file" accept=".pdf,application/pdf,image/*,.doc,.docx" style={{ display: 'none' }} onChange={pickContract} />
+                  {contract && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-2)' }}>
+                      <span className="badge b-ok" style={{ fontSize: 10 }}><span className="badge-dot"></span>{contract.url ? 'Uploaded' : 'Attached'}</span>
+                      {contract.name} <span className="mono" style={{ color: 'var(--ink-4)', fontSize: 10.5 }}>{fmtSize(contract.size)}</span>
+                      <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, padding: '0 6px', color: 'var(--warn)' }} onClick={() => setContract(null)}><WizIcon name="x" size={9} /></button>
+                    </span>
+                  )}
+                </div>
+                <div className="hint">Filed under Contracts on the project page once created.</div>
               </div>
               {form.city && (
                 <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -242,7 +316,9 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', fontWeight: 700, marginBottom: 6 }}>Review</div>
                 <div className="kv"><span className="k">Project</span><span className="v mono">{form.code.toUpperCase()}</span></div>
                 <div className="kv"><span className="k">Name</span><span className="v">{form.name}</span></div>
-                <div className="kv"><span className="k">Client</span><span className="v">{form.client}</span></div>
+                <div className="kv"><span className="k">Client</span><span className="v">{form.client}{form.clientContact ? ` · ${form.clientContact}` : ''}</span></div>
+                {(form.clientEmail || form.clientPhone) && <div className="kv"><span className="k">Contact</span><span className="v">{[form.clientEmail, form.clientPhone].filter(Boolean).join(' · ')}</span></div>}
+                {contract && <div className="kv"><span className="k">Contract</span><span className="v">{contract.name}</span></div>}
                 <div className="kv"><span className="k">Location</span><span className="v">{form.street}, {form.city}, {form.state} {form.zip}</span></div>
                 {form.contractDate && <div className="kv"><span className="k">Contract</span><span className="v mono">{form.contractDate}</span></div>}
                 <div className="kv"><span className="k">Agencies</span><span className="v">{agencies.map(a => AGENCIES[a].short).join(' · ')}</span></div>
