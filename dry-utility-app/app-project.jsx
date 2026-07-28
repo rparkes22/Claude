@@ -43,7 +43,7 @@ function InfoEditModal({ p, onClose, onSave, onDelete }) {
   };
   const F = (k, label, ph) => <InfoFld label={label} ph={ph} value={f[k]} onChange={set(k)} onEnter={save} />;
   return (
-    <div className="modal-backdrop open" onClick={onClose}>
+    <div className="modal-backdrop open" onClick={backdropClose(onClose)}>
       <div className="modal" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-hd">
           <div><h3>Edit project info</h3><div className="m-sub">{p.code} · {p.name}</div></div>

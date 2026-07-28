@@ -129,7 +129,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
         <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setDigestOpen(true)}>Preview digest</button>
       </div>
 
-      <div className={`modal-backdrop ${digestOpen ? 'open' : ''}`} onClick={() => setDigestOpen(false)}>
+      <div className={`modal-backdrop ${digestOpen ? 'open' : ''}`} onClick={backdropClose(() => setDigestOpen(false))}>
         {digestOpen && (
           <div className="modal" style={{ width: 620 }} onClick={e => e.stopPropagation()}>
             <div className="modal-hd">

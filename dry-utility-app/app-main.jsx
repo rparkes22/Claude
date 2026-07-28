@@ -554,7 +554,7 @@ function EmailAlertsPanel({ rows, canWrite, showToast }) {
       </div>
 
       {/* email preview modal */}
-      <div className={`modal-backdrop ${preview ? 'open' : ''}`} onClick={() => setPreview(null)}>
+      <div className={`modal-backdrop ${preview ? 'open' : ''}`} onClick={backdropClose(() => setPreview(null))}>
         {preview && (
           <div className="modal" style={{ width: 560 }} onClick={e => e.stopPropagation()}>
             <div className="modal-hd">

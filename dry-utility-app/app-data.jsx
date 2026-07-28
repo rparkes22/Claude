@@ -512,6 +512,25 @@ const SEED_PROJECTS = [
 ];
 
 // WSL derivation
+// ---- modal backdrop dismissal ----
+// A DOM click fires on the nearest common ancestor of where the press started and
+// where it ended. Selecting text in a field near the edge of a dialog and releasing
+// past it therefore fires "click" on the backdrop and used to dismiss the dialog,
+// losing the edit. Only treat it as a dismissal when the press *began* on the
+// backdrop too. The capture-phase listener runs before React's handlers, so the
+// recorded target is always current.
+let lastMouseDownTarget = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener('mousedown', (e) => { lastMouseDownTarget = e.target; }, true);
+}
+function backdropClose(onClose) {
+  return (e) => {
+    if (e.target !== e.currentTarget) return;              // released on the dialog itself
+    if (lastMouseDownTarget !== e.currentTarget) return;   // press started inside the dialog
+    onClose();
+  };
+}
+
 function deriveWsl(wsl) {
   if (!wsl) return null;
   const issued = parseDate(wsl.issued);
@@ -554,6 +573,7 @@ const DD_META = {
 Object.assign(window, {
   TODAY, parseDate, addYears, addMonths, daysBetween, fmt, fmtShort,
   SEED_USERS, ROLE_META, PERMS, can,
+  backdropClose,
   loadUsers, persistUsers, loadSession, persistSession, loadUserProjects, persistUserProjects,
   CITY_AGENCIES, CITIES, AGENCIES, AGENCY_TASKS, tasksForAgency, loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
   addCity, updateCityAgencies, removeCity, restoreCity, isCustomCity, isEditedCity, removedCities,

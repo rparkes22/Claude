@@ -140,7 +140,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
   };
 
   return (
-    <div className={`modal-backdrop ${open ? 'open' : ''}`} onClick={onClose}>
+    <div className={`modal-backdrop ${open ? 'open' : ''}`} onClick={backdropClose(onClose)}>
       <div className="modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
         <div className="modal-hd" style={{ display: 'block' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

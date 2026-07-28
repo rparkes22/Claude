@@ -165,7 +165,7 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     </label>
   );
   return (
-    <div className="modal-backdrop open" onClick={onClose}>
+    <div className="modal-backdrop open" onClick={backdropClose(onClose)}>
       <div className="modal" style={{ width: 'min(1060px, 94vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div className="modal-hd">
           <div><h3>Generate research letters</h3><div className="m-sub">{p.code} · {p.name} — Utility Research Request template</div></div>
