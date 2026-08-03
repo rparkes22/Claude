@@ -23,6 +23,115 @@ function ProjIcon({ name, size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={p} /></svg>;
 }
 
+// ---- IID Capacity Study Submittal ----
+// Clients often ask for this instead of starting the formal Will Serve process:
+// it establishes whether the project is viable, takes about 7 weeks, and does not
+// authorise coordination work. A WSL can follow later on the same project.
+function CapacityStudyPanel({ p, canWrite, onCapacityEdit, hasWsl }) {
+  const cs = deriveCapacityStudy(p.capacityStudy);
+  const [editing, setEditing] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState('');
+  const [received, setReceived] = React.useState('');
+  const [outcome, setOutcome] = React.useState('');
+  const [notes, setNotes] = React.useState('');
+  const start = () => {
+    setSubmitted(p.capacityStudy?.submitted || TODAY.toISOString().slice(0, 10));
+    setReceived(p.capacityStudy?.received || '');
+    setOutcome(p.capacityStudy?.outcome || '');
+    setNotes(p.capacityStudy?.notes || '');
+    setEditing(true);
+  };
+  const save = () => {
+    if (!submitted) return;
+    onCapacityEdit(p.id, { submitted, received: received || null, outcome: outcome || null, notes: notes.trim() || null });
+    setEditing(false);
+  };
+  const OUTCOMES = [
+    { id: '', label: 'Not determined' },
+    { id: 'capacity', label: 'Capacity available' },
+    { id: 'constrained', label: 'Capacity constrained' },
+    { id: 'upgrades', label: 'Upgrades required' },
+  ];
+  const outcomeMeta = { capacity: 'b-ok', constrained: 'b-amber', upgrades: 'b-warn' };
+
+  return (
+    <div className="panel">
+      <div className="panel-hd">
+        <h2>Capacity Study <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— IID viability</span></h2>
+        {canWrite && !editing && (
+          <button className="btn btn-ghost btn-sm" onClick={start}>{cs ? 'Edit' : 'Log submittal'}</button>
+        )}
+      </div>
+      <div style={{ padding: 16 }}>
+        {editing && (
+          <div style={{ border: '1px solid var(--primary)', background: 'var(--primary-tint)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Submitted to IID</label>
+              <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={submitted} onChange={e => setSubmitted(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Results received <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>— leave blank while awaiting</span></label>
+              <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={received} onChange={e => setReceived(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Finding</label>
+              <select className="select" style={{ height: 32, fontSize: 12.5 }} value={outcome} onChange={e => setOutcome(e.target.value)}>
+                {OUTCOMES.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Notes</label>
+              <textarea className="input" style={{ height: 54, fontSize: 12.5, padding: 8, resize: 'vertical' }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Substation, available capacity, constraints…" />
+            </div>
+            {submitted && !received && (
+              <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 12 }}>
+                Results expected around <b className="mono" style={{ color: 'var(--ink)' }}>{fmt(addDays(submitted, CAPACITY_STUDY_WEEKS * 7))}</b> ({CAPACITY_STUDY_WEEKS}-week typical turnaround).
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={save} disabled={!submitted}><ProjIcon name="check" size={12} />Save</button>
+              <button className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+              {cs && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--warn)', marginLeft: 'auto' }} onClick={() => { onCapacityEdit(p.id, null); setEditing(false); }}>Remove</button>}
+            </div>
+          </div>
+        )}
+        {cs ? (
+          <React.Fragment>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span className="badge b-ok"><span className="badge-dot"></span>Submitted {fmtShort(cs.submitted)}</span>
+              {cs.state === 'received'
+                ? <span className="badge b-blue"><span className="badge-dot"></span>Results {fmtShort(cs.received)}</span>
+                : <span className={`badge ${cs.state === 'overdue' ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{cs.state === 'overdue' ? `Overdue · ${cs.daysOverdue}d` : `Week ${cs.weeksOut} of ${cs.turnaroundWeeks}`}</span>}
+              {cs.outcome && <span className={`badge ${outcomeMeta[cs.outcome] || 'b-gray'}`}><span className="badge-dot"></span>{(OUTCOMES.find(o => o.id === cs.outcome) || {}).label}</span>}
+            </div>
+            {cs.state !== 'received' && (
+              <React.Fragment>
+                <div className="wsl-bar">
+                  <div className="wsl-bar-fill" style={{ width: `${Math.min(100, (cs.daysOut / (cs.turnaroundWeeks * 7)) * 100)}%`, background: cs.state === 'overdue' ? 'var(--warn)' : 'var(--amber)', opacity: 0.45 }}></div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>
+                  <span>{fmtShort(cs.submitted)}</span><span>expected {fmtShort(cs.expected)}</span>
+                </div>
+              </React.Fragment>
+            )}
+            {cs.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5, background: 'var(--surface-2)', borderRadius: 8, padding: '9px 11px' }}>{cs.notes}</div>}
+            {!hasWsl && (
+              <div className="callout info" style={{ marginTop: 12 }}>
+                <ProjIcon name="alert" size={16} />
+                <div>Viability only — a <b>Will Serve Letter</b> is still required before coordination work. Clients typically request one once the project gears up.</div>
+              </div>
+            )}
+          </React.Fragment>
+        ) : !editing && (
+          <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>
+            No capacity study submitted. Clients often request one to test project viability before committing to the formal Will Serve process — roughly a {CAPACITY_STUDY_WEEKS}-week turnaround with IID.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---- edit project info modal ----
 function InfoFld({ label, value, onChange, ph, onEnter }) {
   return (
@@ -637,6 +746,7 @@ function ProjTimeline({ p, modules }) {
 
 function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, wsl }) {
   const tasks = p.tasks.filter(t => t.user);
+  const capStudy = deriveCapacityStudy(p.capacityStudy);
   const [adding, setAdding] = React.useState(false);
   const [name, setName] = React.useState('');
   const [newDue, setNewDue] = React.useState('');
@@ -662,7 +772,10 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
       {!wsl ? (
         <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--amber-tint)', color: 'var(--amber-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <ProjIcon name="clock" size={13} />
-          <span>No Will Serve Letter recorded yet — coordination tasks run off the WSL, which is valid <b>1 year</b> from issue with a <b>6-month extension</b> available.</span>
+          <span>
+            No Will Serve Letter recorded yet — coordination tasks run off the WSL, which is valid <b>1 year</b> from issue with a <b>6-month extension</b> available.
+            {capStudy ? <> A capacity study {capStudy.state === 'received' ? 'has come back' : 'is out with IID'}, but that covers viability only.</> : null}
+          </span>
         </div>
       ) : wsl.state === 'expired' ? (
         <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--warn-tint)', color: 'var(--warn-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -737,7 +850,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
   );
 }
 
-function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
+function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
   const wd = deriveWsl(p.wsl);
   const [letterGenOpen, setLetterGenOpen] = React.useState(false);
   const [infoEditOpen, setInfoEditOpen] = React.useState(false);
@@ -1086,11 +1199,13 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
               ) : (
                 <div className="callout warn">
                   <ProjIcon name="clock" size={16} />
-                  <div><b>No WSL on file yet.</b> IID projects require a Will Serve Letter — valid 1 year from issuance, one 6-month extension. {canWrite ? 'Use “Log WSL” above once issued.' : ''}</div>
+                  <div><b>No WSL on file yet.</b> IID projects require a Will Serve Letter before coordination work — valid 1 year from issuance, one 6-month extension. Clients often run a capacity study first to test viability. {canWrite ? 'Use “Log WSL” above once issued.' : ''}</div>
                 </div>
               )}
             </div>
           </div>
+
+          {p.utility !== 'SCE' && <CapacityStudyPanel p={p} canWrite={canWrite} onCapacityEdit={onCapacityEdit} hasWsl={!!wd} />}
 
           <div className="panel">
             <div className="panel-hd"><h2>Client reporting</h2></div>

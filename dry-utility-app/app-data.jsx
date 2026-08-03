@@ -8,6 +8,7 @@ const TODAY = new Date('2026-07-13T00:00:00');
 const parseDate = (d) => (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? new Date(d + 'T00:00:00') : new Date(d);
 const addYears = (d, n) => { const x = parseDate(d); x.setFullYear(x.getFullYear() + n); return x; };
 const addMonths = (d, n) => { const x = parseDate(d); x.setMonth(x.getMonth() + n); return x; };
+const addDays = (d, n) => { const x = parseDate(d); x.setDate(x.getDate() + n); return x; };
 const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
 const fmt = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtShort = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -312,6 +313,8 @@ const SEED_PROJECTS = [
       { agency: 'iwa',  taskId: 'iwa-res',  name: 'Utility research request', status: 'review', date: '2026-05-12' },
     ],
     wsl: null,
+    // client asked for a viability study before committing to the formal WSL process
+    capacityStudy: { submitted: '2026-05-18', received: null, outcome: null, notes: 'Load estimate 4.2 MW across both parcels — asked IID to confirm capacity at the Avenue 40 feeder.' },
     dd: [
       { name: 'Title Report', status: 'todo', date: null },
       { name: 'ALTA Survey', status: 'todo', date: null },
@@ -388,6 +391,8 @@ const SEED_PROJECTS = [
       { agency: 'socalgas', taskId: 'scg-ws', name: 'Gas will-serve request', status: 'review', date: '2026-06-20' },
     ],
     wsl: { issued: '2026-03-01', extensionUsed: false },
+    // viability study came back first; the client then requested the Will Serve Letter
+    capacityStudy: { submitted: '2025-11-10', received: '2026-01-05', outcome: 'upgrades', notes: 'Capacity available subject to a feeder upgrade at the substation.' },
     dd: [
       { name: 'Title Report', status: 'done', date: '2026-02-15' },
       { name: 'ALTA Survey', status: 'prog', date: '2026-05-28' },
@@ -512,6 +517,26 @@ const SEED_PROJECTS = [
 ];
 
 // WSL derivation
+// ---- IID Capacity Study Submittal ----
+// A lighter-weight alternative clients ask for before committing to the formal
+// Will Serve Letter process: it tests project viability rather than reserving
+// service. Roughly a 7-week turnaround, and it carries no validity clock — the
+// study either is still out with IID or its results are back. A client may ask
+// for a Will Serve Letter at any point afterwards; the two live side by side on
+// the project, and only the WSL authorises coordination work.
+const CAPACITY_STUDY_WEEKS = 7;
+function deriveCapacityStudy(cs) {
+  if (!cs || !cs.submitted) return null;
+  const submitted = parseDate(cs.submitted);
+  const received = cs.received ? parseDate(cs.received) : null;
+  const expected = addDays(submitted, CAPACITY_STUDY_WEEKS * 7);
+  const daysOut = daysBetween(submitted, TODAY);
+  const weeksOut = Math.max(1, Math.ceil(daysOut / 7));
+  const daysOverdue = received ? 0 : daysBetween(expected, TODAY);
+  const state = received ? 'received' : daysOverdue > 0 ? 'overdue' : 'awaiting';
+  return { ...cs, submitted, received, expected, daysOut, weeksOut, daysOverdue, state, turnaroundWeeks: CAPACITY_STUDY_WEEKS };
+}
+
 // ---- modal backdrop dismissal ----
 // A DOM click fires on the nearest common ancestor of where the press started and
 // where it ended. Selecting text in a field near the edge of a dialog and releasing
@@ -577,5 +602,5 @@ Object.assign(window, {
   loadUsers, persistUsers, loadSession, persistSession, loadUserProjects, persistUserProjects,
   CITY_AGENCIES, CITIES, AGENCIES, AGENCY_TASKS, tasksForAgency, loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
   addCity, updateCityAgencies, removeCity, restoreCity, isCustomCity, isEditedCity, removedCities,
-  SEED_PROJECTS, deriveWsl, PHASE_META, PHASES, SUB_META, DD_META,
+  SEED_PROJECTS, deriveWsl, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
 });

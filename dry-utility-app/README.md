@@ -34,6 +34,15 @@ Sign in with one of the demo users on the login screen.
    issue with one **6-month extension**. Project tasks live here and can be given a
    deadline when they are created.
 
+### IID: Capacity Study vs. Will Serve Letter
+
+For IID, clients often ask for a **Capacity Study Submittal** before committing to the
+formal Will Serve process. It tests project viability, runs about **7 weeks**, and has
+no validity clock — it is either still out with IID or its results are back. It does
+**not** authorise coordination work: the WSL is still required, and clients typically
+request one later, once the project gears up. Both records live on the same project,
+so the study stays in the history after the letter is issued.
+
 ## Branding
 
 `assets/msa-logo.svg` is the nav/login lockup and is a placeholder built to match the

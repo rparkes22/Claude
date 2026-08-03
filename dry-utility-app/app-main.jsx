@@ -601,7 +601,12 @@ function EmailAlertsPanel({ rows, canWrite, showToast }) {
 // ===== WSL PAGE =====
 function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) {
   const rows = projects.map(p => ({ p, wd: deriveWsl(p.wsl) })).filter(x => x.wd).sort((a, b) => a.wd.daysLeft - b.wd.daysLeft);
-  const sceRows = projects.filter(p => !p.wsl);
+  // capacity studies run independently of the WSL clock — outstanding ones first
+  const capRows = projects
+    .map(p => ({ p, cs: deriveCapacityStudy(p.capacityStudy), wd: deriveWsl(p.wsl) }))
+    .filter(x => x.cs)
+    .sort((a, b) => (a.cs.state === 'received' ? 1 : 0) - (b.cs.state === 'received' ? 1 : 0) || b.cs.daysOut - a.cs.daysOut);
+  const sceRows = projects.filter(p => !p.wsl && p.utility === 'SCE');
   return (
     <div>
       <EmailAlertsPanel rows={rows} canWrite={canWrite} showToast={showToast} />
@@ -636,6 +641,38 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
           </table>
         </div>
       </div>
+      {capRows.length > 0 && (
+        <div className="panel">
+          <div className="panel-hd">
+            <h2>IID Capacity Studies <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— viability, {CAPACITY_STUDY_WEEKS}-week turnaround</span></h2>
+            <span className="meta">{capRows.length} · does not authorise coordination</span>
+          </div>
+          <div className="grid-scroll">
+            <table className="grid">
+              <thead><tr><th>Project</th><th>Client</th><th>Submitted</th><th>Expected</th><th>Finding</th><th style={{ textAlign: 'right' }}>Status</th><th>Will Serve</th></tr></thead>
+              <tbody>
+                {capRows.map(({ p, cs, wd }) => (
+                  <tr key={p.id} className="row-main" onClick={() => onOpenProject(p.id)}>
+                    <td><div className="proj-name">{p.name}</div><div className="proj-code">{p.code}</div></td>
+                    <td>{p.client}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>{fmtShort(cs.submitted)}</td>
+                    <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{cs.state === 'received' ? '—' : fmtShort(cs.expected)}</td>
+                    <td>{cs.outcome
+                      ? <span className={`badge ${cs.outcome === 'capacity' ? 'b-ok' : cs.outcome === 'upgrades' ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{cs.outcome === 'capacity' ? 'Capacity available' : cs.outcome === 'upgrades' ? 'Upgrades required' : 'Constrained'}</span>
+                      : <span style={{ color: 'var(--ink-4)', fontSize: 12 }}>—</span>}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {cs.state === 'received'
+                        ? <span className="badge b-blue"><span className="badge-dot"></span>Results {fmtShort(cs.received)}</span>
+                        : <span className={`badge ${cs.state === 'overdue' ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{cs.state === 'overdue' ? `Overdue ${cs.daysOverdue}d` : `Week ${cs.weeksOut}/${cs.turnaroundWeeks}`}</span>}
+                    </td>
+                    <td>{wd ? <span className="badge b-ok"><span className="badge-dot"></span>Sent</span> : <span className="badge b-gray">not requested</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       <div className="panel">
         <div className="panel-hd"><h2>SCE projects — electrical analysis review</h2><span className="meta">{sceRows.length} · no WSL clock</span></div>
         <div className="grid-scroll">
@@ -882,6 +919,7 @@ function buildNotifications(projects) {
       if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${p.name}`, sub: `Sent ${fmtShort(wd.issued)} · lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
       else if (wd.state === 'critical') out.push({ id: `wsl-crit-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: wd.extensionUsed ? 'No extensions remain' : 'Extension still available', ts: TODAY });
       else if (wd.state === 'warning') out.push({ id: `wsl-warn-${p.id}`, pid: p.id, sev: 'warn', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: `Expiry ${fmtShort(wd.effectiveExpiry)}`, ts: TODAY });
+      // (capacity-study alerts are handled below — they apply with or without a WSL)
       // Filing the one 6-month extension is time-critical and easy to miss, so it
       // gets its own escalating alert on top of the expiry countdown above.
       if (wd.needsExtension) {
@@ -902,6 +940,17 @@ function buildNotifications(projects) {
     p.tasks.forEach(t => {
       if (t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0) out.push({ id: `due-${p.id}-${t._key || t.taskId}`, pid: p.id, sev: 'warn', icon: 'clock', title: `Task overdue — ${t.name}`, sub: `${p.name} · due ${fmtShort(t.due)} · ${daysBetween(t.due, TODAY)}d late`, ts: t.due });
     });
+    // Capacity study still out past its typical turnaround — chase IID.
+    const cs = deriveCapacityStudy(p.capacityStudy);
+    if (cs && cs.state === 'overdue') {
+      out.push({
+        id: `cap-late-${p.id}`, pid: p.id,
+        sev: cs.daysOverdue >= 14 ? 'crit' : 'warn', icon: 'clock',
+        title: `Capacity study overdue — ${p.name}`,
+        sub: `Submitted ${fmtShort(cs.submitted)} · ${cs.turnaroundWeeks}-week turnaround passed ${cs.daysOverdue}d ago`,
+        ts: cs.expected,
+      });
+    }
     const due = p.reporting.lastSent && daysBetween(p.reporting.lastSent, TODAY) >= (p.reporting.cadence === 'Weekly' ? 7 : 14);
     if (due) out.push({ id: `rpt-${p.id}`, pid: p.id, sev: 'info', icon: 'report', title: `${p.reporting.cadence} report due — ${p.name}`, sub: `Last sent ${fmtShort(p.reporting.lastSent)}`, ts: TODAY });
     // stale utility research letters: sent, nothing received, no recent follow-up (30d threshold)
@@ -1030,6 +1079,13 @@ function App() {
   const [reportCode, setReportCode] = React.useState(null);
   const [userProjects, setUserProjects] = React.useState(loadUserProjects);
   const [wizardOpen, setWizardOpen] = React.useState(false);
+  const CAPSTUDY_KEY = 'msa_app_capstudy_v1';
+  const [capStudies, setCapStudies] = React.useState(() => { try { return JSON.parse(localStorage.getItem(CAPSTUDY_KEY)) || {}; } catch (e) { return {}; } }); // projectId -> capacity study
+  const saveCapStudies = (updater) => setCapStudies(prev => {
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    try { localStorage.setItem(CAPSTUDY_KEY, JSON.stringify(next)); } catch (e) {}
+    return next;
+  });
   const WSL_KEY = 'msa_app_wsl_overrides_v1';
   const [wslOverrides, setWslOverrides] = React.useState(() => { try { return JSON.parse(localStorage.getItem(WSL_KEY)) || {}; } catch (e) { return {}; } }); // projectId -> wsl override
   const saveWslOverrides = (updater) => setWslOverrides(prev => {
@@ -1062,6 +1118,7 @@ function App() {
       // stable per-task keys (assigned before overrides/removal so they never shift)
       out = { ...out, tasks: out.tasks.map((t, i) => ({ ...t, _key: `${t.agency}:${t.taskId}:${i}` })) };
       if (Object.prototype.hasOwnProperty.call(wslOverrides, p.id)) out = { ...out, wsl: wslOverrides[p.id] };
+      if (Object.prototype.hasOwnProperty.call(capStudies, p.id)) out = { ...out, capacityStudy: capStudies[p.id] };
       const to = taskOverrides[p.id];
       if (to) {
         out = { ...out, tasks: out.tasks.map(t => to[t._key] ? { ...t, ...to[t._key] } : t) };
@@ -1081,7 +1138,7 @@ function App() {
       }
       return out;
     });
-  }, [userProjects, wslOverrides, taskOverrides, ddOverrides, phaseOverrides, addedTasks, infoOverrides, deletedIds]);
+  }, [userProjects, wslOverrides, capStudies, taskOverrides, ddOverrides, phaseOverrides, addedTasks, infoOverrides, deletedIds]);
 
   // completed projects live in the archive, not the working views
   const activeProjects = React.useMemo(() => projects.filter(p => p.phase !== 'Complete'), [projects]);
@@ -1159,6 +1216,20 @@ function App() {
     } else {
       saveWslOverrides(prev => ({ ...prev, [pid]: wsl }));
       showToast(`WSL dates updated for ${p.name}`);
+    }
+  };
+
+  // Capacity study submittals — logged, edited, or cleared per project.
+  const onCapacityEdit = (pid, cs) => {
+    if (!canWrite) return;
+    const p = projects.find(x => x.id === pid);
+    if (!p) return;
+    if (cs === null) {
+      saveCapStudies(prev => ({ ...prev, [pid]: null }));
+      showToast(`Capacity study removed for ${p.name}`);
+    } else {
+      saveCapStudies(prev => ({ ...prev, [pid]: cs }));
+      showToast(cs.received ? `Capacity study results logged for ${p.name}` : `Capacity study submittal logged for ${p.name}`);
     }
   };
 
@@ -1310,6 +1381,7 @@ function App() {
               onBack={() => setOpenProjectId(null)}
               onWslAction={onWslAction}
               onWslEdit={onWslEdit}
+              onCapacityEdit={onCapacityEdit}
               onTaskUpdate={onTaskUpdate}
               onTaskRename={onTaskRename}
               onTaskSetDue={onTaskSetDue}
