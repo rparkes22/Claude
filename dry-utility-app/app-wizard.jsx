@@ -169,7 +169,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
               <div className="form-row">
                 <div className="field">
                   <label>Project number <span className="req">*</span></label>
-                  <input className="input mono" value={form.code} onChange={e => set('code', e.target.value)} placeholder="DRU-2201" />
+                  <input className="input mono" value={form.code} onChange={e => set('code', e.target.value)} placeholder="1234" />
                 </div>
                 <div className="field">
                   <label>Client <span className="req">*</span></label>

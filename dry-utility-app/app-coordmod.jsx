@@ -59,7 +59,7 @@ const CM_TRACKS = [
   { id: 'gasbb', lab: 'Gas Co — Backbone', agency: 'socalgas' },
   { id: 'gasmtr', lab: 'Gas Co — Meters', agency: 'socalgas' },
   { id: 'frontier', lab: 'Frontier', agency: 'frontier' },
-  { id: 'twc', lab: 'Spectrum (TWC)', agency: 'spectrum' },
+  { id: 'twc', lab: 'Spectrum', agency: 'spectrum' },
 ];
 
 function CoordModule({ p, canWrite, currentUser, users }) {
@@ -387,24 +387,43 @@ function CoordModule({ p, canWrite, currentUser, users }) {
   const TrackPicker = ({ initial, onDone, onCancel }) => {
     const [sel, setSel] = React.useState(initial || []);
     const tog = (id) => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+    // only the project's own agencies up front; anything already enabled counts as on-project
+    const onProjectTracks = CM_TRACKS.filter(t => p.agencies.includes(t.agency) || (initial || []).includes(t.id));
+    const otherTracks = CM_TRACKS.filter(t => !onProjectTracks.includes(t));
+    const [showOther, setShowOther] = React.useState(false);
+    const TrackBtn = ({ t }) => {
+      const on = sel.includes(t.id);
+      const inProject = p.agencies.includes(t.agency);
+      return (
+        <button onClick={() => tog(t.id)} style={{ font: 'inherit', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, border: on ? '1.5px solid var(--primary)' : '1px solid var(--border)', background: on ? 'var(--primary-tint)' : 'var(--surface)' }}>
+          <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: on ? 'none' : '1.5px solid var(--border-strong)', background: on ? 'var(--primary)' : 'transparent', display: 'grid', placeItems: 'center', color: '#fff' }}>{on && <ProjIcon name="check" size={10} />}</span>
+          <span>
+            <span style={{ display: 'block', fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{t.lab}</span>
+            <span style={{ display: 'block', fontSize: 10.5, color: inProject ? 'var(--ink-4)' : 'var(--amber-ink)' }}>{AGENCIES[t.agency]?.short || t.agency}{inProject ? '' : ' — not on this project'}</span>
+          </span>
+        </button>
+      );
+    };
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 10 }}><b>Which coordination tracks does this project need?</b> One per worksheet in the coordination tracking form — pick only what applies.</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 10 }}><b>Which coordination tracks does this project need?</b> One per worksheet in the coordination tracking form — these are the agencies selected for this project.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8, marginBottom: 12 }}>
-          {CM_TRACKS.map(t => {
-            const on = sel.includes(t.id);
-            const inProject = p.agencies.includes(t.agency);
-            return (
-              <button key={t.id} onClick={() => tog(t.id)} style={{ font: 'inherit', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, border: on ? '1.5px solid var(--primary)' : '1px solid var(--border)', background: on ? 'var(--primary-tint)' : 'var(--surface)' }}>
-                <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: on ? 'none' : '1.5px solid var(--border-strong)', background: on ? 'var(--primary)' : 'transparent', display: 'grid', placeItems: 'center', color: '#fff' }}>{on && <ProjIcon name="check" size={10} />}</span>
-                <span>
-                  <span style={{ display: 'block', fontWeight: 700, fontSize: 12.5, color: 'var(--ink)' }}>{t.lab}</span>
-                  <span style={{ display: 'block', fontSize: 10.5, color: inProject ? 'var(--ink-4)' : 'var(--amber-ink)' }}>{AGENCIES[t.agency]?.short || t.agency}{inProject ? '' : ' — not on this project'}</span>
-                </span>
-              </button>
-            );
-          })}
+          {onProjectTracks.map(t => <TrackBtn key={t.id} t={t} />)}
         </div>
+        {/* Tracks for agencies that aren't on this project stay tucked away, but
+            remain available for the cases where one needs adding later. */}
+        {otherTracks.length > 0 && (
+          showOther ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--ink-4)', fontWeight: 700, margin: '0 0 6px' }}>Other tracks — agencies not on this project</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
+                {otherTracks.map(t => <TrackBtn key={t.id} t={t} />)}
+              </div>
+            </div>
+          ) : (
+            <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={() => setShowOther(true)}>+ Add another track ({otherTracks.length})</button>
+          )
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary btn-sm" onClick={() => onDone(sel)} disabled={!sel.length}>Enable {sel.length || ''} track{sel.length === 1 ? '' : 's'}</button>
           {onCancel && <button className="btn btn-sm" onClick={onCancel}>Cancel</button>}

@@ -1254,6 +1254,13 @@ function App() {
     showToast('Task renamed');
   };
 
+  // A project task's date is the date the submittal went out.
+  const onTaskSetDate = (pid, taskKey, date) => {
+    if (!canWrite) return;
+    patchTask(pid, taskKey, { date: date || null });
+    showToast(date ? `Submittal date set — ${fmt(date)}` : 'Submittal date cleared');
+  };
+
   const onTaskSetDue = (pid, taskKey, due) => {
     if (!canWrite) return;
     patchTask(pid, taskKey, { due: due || null });
@@ -1385,6 +1392,7 @@ function App() {
               onTaskUpdate={onTaskUpdate}
               onTaskRename={onTaskRename}
               onTaskSetDue={onTaskSetDue}
+              onTaskSetDate={onTaskSetDate}
               onTaskDelete={onTaskDelete}
               onTaskAdd={onTaskAdd}
               onDdUpdate={onDdUpdate}

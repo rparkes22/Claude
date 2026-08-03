@@ -163,7 +163,7 @@ const AGENCIES = {
   vsd:      { id: 'vsd',      name: 'Valley Sanitary District',     short: 'VSD', kind: 'Sewer',    note: 'Sewer research & capacity — 45-500 Van Buren, Indio' },
   iwa:      { id: 'iwa',      name: 'Indio Water Authority',        short: 'IWA', kind: 'Water',    note: 'Water research & will-serve — IWAEngineering@indio.org' },
   myoma:    { id: 'myoma',    name: 'Myoma Dunes Mutual Water Co.', short: 'MYO', kind: 'Water',    note: 'Water research — Bermuda Dunes area' },
-  spectrum: { id: 'spectrum', name: 'Spectrum / Time Warner Cable', short: 'SPC', kind: 'Telecom',  note: 'Cable research & relocation coordination' },
+  spectrum: { id: 'spectrum', name: 'Spectrum', short: 'SPC', kind: 'Telecom',  note: 'Cable research & relocation coordination' },
   sprint:   { id: 'sprint',   name: 'Sprint (Cogent)',              short: 'SPR', kind: 'Telecom',  note: 'Fiber research — Planning & Engineering, Rialto' },
 };
 // Pristine snapshot for resets (before custom merges/overrides)
@@ -333,13 +333,13 @@ const SEED_PROJECTS = [
       { id: 'r-scgd', agency: 'socalgas', label: 'Gas — Distribution',         sent: '2026-05-12', received: '2026-05-28', to: 'SCGSERegionRedlands…@semprautilities.com', file: 'uploads/Gas-Distribution Research Letter.pdf' },
       { id: 'r-scgt', agency: 'scgt',     label: 'Gas — Transmission',         sent: '2026-05-12', received: null, to: 'socalgastransmission…@semprautilities.com', file: 'uploads/Gas-Transmission Research Letter.pdf' },
       { id: 'r-ftr',  agency: 'frontier', label: 'Telephone (Frontier)',       sent: '2026-05-12', received: null, to: 'lisa.jacobson@dynamictelco.com', file: 'uploads/Frontier Research Letter.pdf' },
-      { id: 'r-spc',  agency: 'spectrum', label: 'Cable (Spectrum / TWC)',     sent: '2026-05-12', received: null, to: 'DL-Socal-charter-engineering@charter.com', file: 'uploads/Spectrum -TWC Research Letter.pdf' },
+      { id: 'r-spc',  agency: 'spectrum', label: 'Cable (Spectrum)',     sent: '2026-05-12', received: null, to: 'DL-Socal-charter-engineering@charter.com', file: 'uploads/Spectrum -TWC Research Letter.pdf' },
       { id: 'r-spr',  agency: 'sprint',   label: 'Fiber (Sprint / Cogent)',    sent: '2026-05-12', received: null, to: 'jyork@cogentco.com', file: 'uploads/Sprint Research Letter.pdf' },
     ],
     exhibits: [{ name: 'RFP 3102 — Project Exhibit', file: 'uploads/P3102 Exhibit.pdf' }],
   },
   {
-    id: 'p1', code: 'DRU-2150', name: 'Salton Sea Solar', client: 'Helio Partners',
+    id: 'p1', code: '2150', name: 'Salton Sea Solar', client: 'Helio Partners',
     location: { street: '4210 Garst Rd', city: 'Niland', state: 'CA', zip: '92257' },
     utility: 'IID', pm: 'DM', phase: 'Submitted',
     agencies: ['iid', 'socalgas', 'county'],
@@ -361,7 +361,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Weekly', lastSent: '2026-07-10', changes: 3 },
   },
   {
-    id: 'p2', code: 'DRU-2104', name: 'Imperial Farm Solar 4', client: 'Helio Partners',
+    id: 'p2', code: '2104', name: 'Imperial Farm Solar 4', client: 'Helio Partners',
     location: { street: '1876 Aten Rd', city: 'Imperial', state: 'CA', zip: '92251' },
     utility: 'IID', pm: 'MS', phase: 'Design',
     agencies: ['iid', 'county'],
@@ -382,7 +382,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Bi-weekly', lastSent: '2026-07-01', changes: 2 },
   },
   {
-    id: 'p3', code: 'DRU-2098', name: 'Heber Solar Field', client: 'Helio Partners',
+    id: 'p3', code: '2098', name: 'Heber Solar Field', client: 'Helio Partners',
     location: { street: '905 Heber Ave', city: 'Heber', state: 'CA', zip: '92249' },
     utility: 'IID', pm: 'DM', phase: 'Due Diligence',
     agencies: ['iid', 'socalgas', 'county'],
@@ -404,7 +404,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Bi-weekly', lastSent: '2026-06-29', changes: 1 },
   },
   {
-    id: 'p4', code: 'DRU-2092', name: 'Brawley Industrial', client: 'Mason Industrial',
+    id: 'p4', code: '2092', name: 'Brawley Industrial', client: 'Mason Industrial',
     location: { street: '310 Best Rd', city: 'Brawley', state: 'CA', zip: '92227' },
     utility: 'IID', pm: 'MC', phase: 'Construction',
     agencies: ['iid', 'socalgas', 'citybr', 'frontier'],
@@ -428,7 +428,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Weekly', lastSent: '2026-07-11', changes: 4 },
   },
   {
-    id: 'p5', code: 'DRU-2110', name: 'Calexico Logistics', client: 'WestRanch Dev.',
+    id: 'p5', code: '2110', name: 'Calexico Logistics', client: 'WestRanch Dev.',
     location: { street: '2455 Enrico Fermi Dr', city: 'Calexico', state: 'CA', zip: '92231' },
     utility: 'IID', pm: 'MS', phase: 'Design',
     agencies: ['iid', 'socalgas', 'citycx', 'att'],
@@ -450,7 +450,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Weekly', lastSent: '2026-07-08', changes: 2 },
   },
   {
-    id: 'p6', code: 'DRU-2076', name: 'El Centro Phase 2', client: 'City of El Centro',
+    id: 'p6', code: '2076', name: 'El Centro Phase 2', client: 'City of El Centro',
     location: { street: '1275 W Main St', city: 'El Centro', state: 'CA', zip: '92243' },
     utility: 'IID', pm: 'MS', phase: 'Submitted',
     agencies: ['iid', 'socalgas', 'cityec'],
@@ -471,7 +471,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Weekly', lastSent: '2026-07-10', changes: 5 },
   },
   {
-    id: 'p7', code: 'DRU-2160', name: 'Indio Townhomes', client: 'Hayes & Co.',
+    id: 'p7', code: '2160', name: 'Indio Townhomes', client: 'Hayes & Co.',
     location: { street: '82640 Miles Ave', city: 'Indio', state: 'CA', zip: '92201' },
     utility: 'SCE', pm: 'DM', phase: 'Design',
     agencies: ['sce', 'socalgas', 'cityin'],
@@ -493,7 +493,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Bi-weekly', lastSent: '2026-07-06', changes: 1 },
   },
   {
-    id: 'p8', code: 'DRU-2134', name: 'Coachella Solar', client: 'Hayes & Co.',
+    id: 'p8', code: '2134', name: 'Coachella Solar', client: 'Hayes & Co.',
     location: { street: '46200 Dillon Rd', city: 'Coachella', state: 'CA', zip: '92236' },
     utility: 'IID', pm: 'DM', phase: 'Submitted',
     agencies: ['iid', 'citych', 'frontier'],

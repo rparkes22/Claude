@@ -9,7 +9,7 @@ const LETTER_RECIPIENTS = [
   { id: 'lr-scgd', agency: 'socalgas', label: 'Gas — Distribution',     attn: 'Southern California Gas Company (Distribution)', email: 'SCGSERegionRedlandsUtilityRequest@semprautilities.com', addr: ['1981 Lugonia Ave', 'Redlands, CA 92374'] },
   { id: 'lr-scgt', agency: 'scgt',     label: 'Gas — Transmission',     attn: 'Southern California Gas Company (Transmission)', email: 'socalgastransmissionutilityrequest@semprautilities.com', addr: ['251 E. First Street', 'Beaumont, CA 92223'] },
   { id: 'lr-ftr',  agency: 'frontier', label: 'Telephone (Frontier)',   attn: 'Frontier Communications', contact: 'Lisa Jacobson', email: 'lisa.jacobson@dynamictelco.com', addr: ['295 N. Sunrise Way', 'Palm Springs, CA 92262'] },
-  { id: 'lr-spc',  agency: 'spectrum', label: 'Cable (Spectrum / TWC)', attn: 'Time Warner Cable / Spectrum', email: 'DL-Socal-charter-engineering@charter.com', addr: ['105 Kent Street', 'Iron Mountain, MI 49801'] },
+  { id: 'lr-spc',  agency: 'spectrum', label: 'Cable (Spectrum)', attn: 'Spectrum', email: 'DL-Socal-charter-engineering@charter.com', addr: ['105 Kent Street', 'Iron Mountain, MI 49801'] },
   { id: 'lr-spr',  agency: 'sprint',   label: 'Fiber (Sprint / Cogent)', attn: 'Sprint Planning and Engineering Department', contact: 'Jeffrey York', email: 'jyork@cogentco.com', addr: ['282 South Sycamore Ave.', 'Rialto, CA 92376'] },
   { id: 'lr-att',  agency: 'att',      label: 'Telephone (AT&T)',       attn: 'AT&T Engineering', email: 'osp.requests@att.com', addr: ['1265 N Van Buren St', 'Anaheim, CA 92807'] },
 ];

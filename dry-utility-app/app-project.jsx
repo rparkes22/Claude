@@ -744,18 +744,21 @@ function ProjTimeline({ p, modules }) {
   );
 }
 
-function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, wsl }) {
+function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskSetDate, onTaskAssign, onTaskAdd, wsl }) {
   const tasks = p.tasks.filter(t => t.user);
   const capStudy = deriveCapacityStudy(p.capacityStudy);
   const [adding, setAdding] = React.useState(false);
   const [name, setName] = React.useState('');
   const [newDue, setNewDue] = React.useState('');
+  const [newSubmitted, setNewSubmitted] = React.useState(TODAY.toISOString().slice(0, 10));
   const [editKey, setEditKey] = React.useState(null);
   const [editName, setEditName] = React.useState('');
+  const startAdd = () => { setNewSubmitted(TODAY.toISOString().slice(0, 10)); setNewDue(''); setName(''); setAdding(true); };
   const save = () => {
     const n = name.trim();
     if (!n) return;
-    onTaskAdd(p.id, { agency: null, taskId: 'custom-' + Date.now(), name: n, status: 'none', date: null, due: newDue || null });
+    // date = the submittal date for this task, not a bare "created on" stamp
+    onTaskAdd(p.id, { agency: null, taskId: 'custom-' + Date.now(), name: n, status: 'none', date: newSubmitted || null, due: newDue || null });
     setAdding(false); setName(''); setNewDue('');
   };
   if (!tasks.length && !canWrite) return null;
@@ -765,7 +768,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
         <h2>Project tasks <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— Utility Coordination</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="meta">{tasks.length ? `${tasks.filter(t => t.status === 'ok').length}/${tasks.length} complete` : 'none'}</span>
-          {canWrite && !adding && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => setAdding(true)}>+ Add task</button>}
+          {canWrite && !adding && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={startAdd}>+ Add task</button>}
         </div>
       </div>
       {/* Coordination work is authorised by the Will Serve Letter — surface its state here. */}
@@ -791,6 +794,10 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
       {adding && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input className="input" autoFocus style={{ height: 30, fontSize: 12.5, flex: 1, minWidth: 180 }} placeholder="Task — e.g. Existing Utility Plan" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+            Submitted
+            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newSubmitted} onChange={e => setNewSubmitted(e.target.value)} title="Date this submittal went out" />
+          </label>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
             Deadline
             <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newDue} onChange={e => setNewDue(e.target.value)} title="Optional deadline for this task" />
@@ -830,7 +837,14 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
                   </select>
                 ) : u && <span className="meta">{u.name}</span>}
                 {canWrite ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} title="Submittal date">
+                    <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sub</span>
+                    <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: 132 }} value={t.date || ''} onChange={e => onTaskSetDate(p.id, t._key, e.target.value || null)} />
+                  </span>
+                ) : t.date && <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>submitted {fmtShort(t.date)}</span>}
+                {canWrite ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} title="Deadline">
+                    <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Due</span>
                     <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: 132, borderColor: overdue ? 'var(--warn)' : 'var(--border)', color: overdue ? 'var(--warn)' : 'var(--ink-2)' }} value={t.due || ''} onChange={e => onTaskSetDue(p.id, t._key, e.target.value || null)} />
                     {overdue && <span className="badge b-warn" style={{ fontSize: 10 }}>{daysBetween(t.due, TODAY)}d late</span>}
                   </span>
@@ -850,7 +864,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
   );
 }
 
-function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
+function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskSetDate, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
   const wd = deriveWsl(p.wsl);
   const [letterGenOpen, setLetterGenOpen] = React.useState(false);
   const [infoEditOpen, setInfoEditOpen] = React.useState(false);
@@ -1018,7 +1032,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
 
           {modules.coordination && <CoordModule p={p} canWrite={canWrite} currentUser={currentUser} users={users} />}
 
-          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetDue={onTaskSetDue} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
+          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetDue={onTaskSetDue} onTaskSetDate={onTaskSetDate} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
 
           <div className="panel">
             <div className="panel-hd"><h2>Notes &amp; activity</h2><span className="meta">{activity.length} entries</span></div>

@@ -369,21 +369,21 @@ const FRONTIER = {
 };
 
 const TWC = {
-  id: 'twc', utility: 'TWC', utilityFull: 'Time Warner Cable',
-  track: 'Backbone', tag: 'TWC',
+  id: 'twc', utility: 'Spectrum', utilityFull: 'Spectrum',
+  track: 'Backbone', tag: 'SPC',
   groups: [
-    { name: 'TWC Backbone Submittal', steps: [
-        st('Submittal made to TWC', { f: 43298 }),
-        st('Preliminary design received from TWC'),
+    { name: 'Spectrum Backbone Submittal', steps: [
+        st('Submittal made to Spectrum', { f: 43298 }),
+        st('Preliminary design received from Spectrum'),
         st('Send preliminary design to client for review'),
         st('Reviewed and approved by client'),
-        st('Send approval/revisions to TWC for final'),
-        st('Received final design from TWC'),
+        st('Send approval/revisions to Spectrum for final'),
+        st('Received final design from Spectrum'),
         st('Send final design to client'),
       ],
-      comment: 'TWC contacts are Dale Shrivner and Scot Koehler. Per conversation with DS on 7/26 he had not received application. Resent on 7/26. Per Mike Pike, Dale Scrivner is aware of phasing and planning accordingly. 7/31' },
+      comment: 'Spectrum contacts are Dale Shrivner and Scot Koehler. Per conversation with DS on 7/26 he had not received application. Resent on 7/26. Per Mike Pike, Dale Scrivner is aware of phasing and planning accordingly. 7/31' },
     { name: 'Fee Letter · Easement · Marketing Agreement · Bill of Sale · Wiring Specs', state: 'pending',
-      steps: [st('Received from TWC'), st('Sent to client'), st('Received back from client'), st('Sent to TWC')],
+      steps: [st('Received from Spectrum'), st('Sent to client'), st('Received back from client'), st('Sent to Spectrum')],
       comment: '5 further document tracks plus phase notifications (15 phases) — none started yet.' },
   ],
   contracts: [],
