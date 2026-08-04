@@ -67,10 +67,26 @@ no validity clock — it is either still out with IID or its results are back. I
 request one later, once the project gears up. Both records live on the same project,
 so the study stays in the history after the letter is issued.
 
-## Branding
+## Branding & letterhead
 
-`assets/msa-logo.svg` is the nav/login lockup and is a placeholder built to match the
-letterhead. Drop the official artwork in at that same path to replace it everywhere.
+Anything that leaves the office on paper — **Utility Research letters** and **client
+reports** — is laid out on the MSA letterhead: the centred logo lockup with the two
+discipline lines at the top, and the rule plus `34200 Bob Hope Drive · 760.320.9811 ·
+msaconsultinginc.com` at the foot. It repeats on **every page**, not just the first.
+
+`Letterhead` / `LetterFoot` / `LetterheadDoc` live in `app-letters.jsx` and are shared by
+both documents, so the two can't drift apart. `LetterheadDoc` wraps content in a table and
+puts the letterhead in `<thead>` and the contact line in `<tfoot>` — browsers redraw those
+at the top and bottom of each printed page. (`position: fixed` was tried first and is not
+dependable: negative offsets into the `@page` margin get clipped, and page one is skipped.)
+Letters pass `singlePage`, which fixes the table to one page so the contact line sits at
+the page foot rather than tucked under a short letter.
+
+Two SVGs, both placeholders drawn to match the letterhead — drop the official artwork in
+at the same paths and it updates everywhere at once:
+
+- `assets/msa-mark.svg` — the circular MS monogram, used on letters and reports.
+- `assets/msa-logo.svg` — the nav/login lockup.
 
 ## Data & attachments (Supabase)
 

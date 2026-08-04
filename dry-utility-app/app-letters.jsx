@@ -41,6 +41,65 @@ function removeRecipient(id) {
 }
 function resetRecipient(id) { const m = loadContactMods(); delete m.edited[id]; m.removed = m.removed.filter(x => x !== id); persistContactMods(m); }
 
+// ===== MSA LETTERHEAD =====
+// The firm's letterhead, reproduced for anything that leaves the office on paper or
+// as a PDF (research letters, client reports). Shared so the two never drift apart.
+//
+// Repeating it on every page is done with a table: browsers re-draw <thead> at the top
+// and <tfoot> at the bottom of each printed page. position:fixed was tried first and
+// is not dependable — negative offsets into the @page margin get clipped, and the
+// first page is skipped entirely.
+const MSA_DISCIPLINES = [
+  'Civil Engineering  ·  Land Surveying  ·  Landscape Architecture',
+  'Planning  ·  Environmental Services  ·  Dry Utility Coordination  ·  GIS',
+];
+const MSA_CONTACT = ['34200 Bob Hope Drive, Rancho Mirage, CA 92270', '760.320.9811', 'msaconsultinginc.com'];
+
+function Letterhead() {
+  return (
+    <div className="msa-lh" aria-label="MSA Consulting, Inc.">
+      <img className="msa-lh-mark" src="assets/msa-mark.svg" alt="" />
+      <div className="msa-lh-type">
+        <div className="msa-lh-word">
+          <span className="w-msa">MSA</span>{' '}
+          <span className="w-consulting">CONSULTING</span><span className="w-inc">, INC.</span>
+        </div>
+        <div className="msa-lh-rule" />
+        {MSA_DISCIPLINES.map((l, i) => <div className="msa-lh-disc" key={i}>{l}</div>)}
+      </div>
+    </div>
+  );
+}
+
+function LetterFoot() {
+  return (
+    <div className="msa-ft">
+      <div className="msa-ft-rule" />
+      <div className="msa-ft-line">
+        {MSA_CONTACT.map((t, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <span className="msa-ft-sep">|</span>}
+            <span>{t}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Wraps document content in MSA letterhead. `singlePage` fixes the table to one
+// printed page so the footer sits at the page foot rather than under short content —
+// right for letters; reports flow across pages and repeat the header/footer instead.
+function LetterheadDoc({ children, singlePage }) {
+  return (
+    <table className={'msa-doc' + (singlePage ? ' msa-doc-1p' : '')}>
+      <thead><tr><td><Letterhead /></td></tr></thead>
+      <tfoot><tr><td><LetterFoot /></td></tr></tfoot>
+      <tbody><tr><td className="msa-doc-body">{children}</td></tr></tbody>
+    </table>
+  );
+}
+
 function letterBody(f) {
   return [
     `We are in the process of working on a new project in ${f.siteDesc}. We need any information your agency may have regarding existing utilities within the area described. Please include maps or atlases and As-Built plans for both above and below ground facilities if applicable.`,
@@ -53,10 +112,7 @@ function letterBody(f) {
 function LetterSheet({ r, f }) {
   return (
     <div className="letter-sheet">
-      <div className="letter-msa-hd">
-        <div className="letter-msa-logo">MSA CONSULTING, INC.</div>
-        <div className="letter-msa-sub">34200 Bob Hope Drive, Rancho Mirage, CA 92270 · 760.320.9811 · msaconsultinginc.com</div>
-      </div>
+      <LetterheadDoc singlePage>
       <div className="letter-date">{fmt(f.date)}</div>
       <div className="letter-addr">
         {r.contact && <div>{r.contact}</div>}
@@ -79,6 +135,7 @@ function LetterSheet({ r, f }) {
           <div>{f.signerTitle}</div>
         </div>
       </div>
+      </LetterheadDoc>
     </div>
   );
 }
@@ -149,6 +206,8 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     holder.id = 'letter-print-root';
     document.body.appendChild(holder);
     const root = ReactDOM.createRoot(holder);
+    // Each sheet is its own letterhead table, so every letter prints on its own page
+    // with the header at the top and the contact line at the foot.
     root.render(<div>{chosen.map(r => <LetterSheet key={r.id} r={r} f={fields} />)}</div>);
     setTimeout(() => {
       window.print();

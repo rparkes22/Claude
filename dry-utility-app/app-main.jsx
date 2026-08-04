@@ -751,16 +751,11 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
 
       <div className="report-stage">
         <div className="sheet">
+          {/* the letterhead table repeats its header/footer on every printed page */}
+          <LetterheadDoc>
           <div className="lh">
-            <div className="lh-brand">
-              <div className="lh-mark">M</div>
-              <div><div className="lh-name">MSA Consulting</div><div className="lh-tag">Civil Engineering · Dry Utility Division</div></div>
-            </div>
-            <div className="lh-right">
-              <div className="lh-doc">{cadence} Project Update</div>
-              <div className="lh-period">{fmtShort(periodStart)} – {fmtShort(TODAY)}</div>
-              <div className="lh-dates">{TODAY.getFullYear()}</div>
-            </div>
+            <div className="lh-doc">{cadence} Project Update</div>
+            <div className="lh-period">{fmtShort(periodStart)} – {fmtShort(TODAY)}</div>
           </div>
           <div className="tb-project">{project.name}</div>
           <div className="tb-meta">
@@ -887,8 +882,9 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
               Standardized {cadence.toLowerCase()} update. Highlighted items reflect changes since the prior report. Current as of {fmt(TODAY)}.
               <div style={{ marginTop: 4 }}>Prepared by MSA Consulting Dry Utility Division</div>
             </div>
-            <div className="foot-page">{project.code}<br />Page 1 of 1</div>
+            <div className="foot-page">{project.code}</div>
           </div>
+          </LetterheadDoc>
         </div>
       </div>
     </div>
