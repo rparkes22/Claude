@@ -310,141 +310,6 @@ function ContractsPanel({ p, canWrite, currentUser }) {
     </div>
   );
 }
-function AgencyPanel({ agency, tasks, p, canWrite, users, userLoads, currentUser, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskAssign, onTaskAdd }) {
-  const [adding, setAdding] = React.useState(false);
-  const [pickId, setPickId] = React.useState('');
-  const [customName, setCustomName] = React.useState('');
-  const [editKey, setEditKey] = React.useState(null);
-  const [editName, setEditName] = React.useState('');
-  const [newDue, setNewDue] = React.useState('');
-  const catalog = tasksForAgency(agency.id).filter(ct => !tasks.some(t => t.taskId === ct.id));
-  const startAdd = () => { setPickId(catalog[0]?.id || 'custom'); setCustomName(''); setNewDue(''); setAdding(true); };
-  const save = () => {
-    let task;
-    if (pickId === 'custom') {
-      const name = customName.trim();
-      if (!name) return;
-      task = { agency: agency.id, taskId: 'custom-' + Date.now(), name, status: 'none', date: null, due: newDue || null };
-    } else {
-      const ct = catalog.find(c => c.id === pickId);
-      if (!ct) return;
-      task = { agency: agency.id, taskId: ct.id, name: ct.name, status: 'none', date: null, due: newDue || null };
-    }
-    onTaskAdd(p.id, task);
-    setAdding(false); setNewDue('');
-  };
-  return (
-    <div className="panel">
-      <div className="panel-hd">
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <ProjIcon name="building" size={14} />{agency.name}
-          <span className="util-tag util-iid mono">{agency.short}</span>
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="meta">{agency.kind} · {tasks.filter(t => t.status === 'ok').length}/{tasks.length} approved</span>
-          {canWrite && !adding && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={startAdd}>+ Add task</button>}
-        </div>
-      </div>
-      {adding && (
-        <div style={{ padding: '11px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select className="select" style={{ width: 'auto', minWidth: 220, height: 30, fontSize: 12.5 }} value={pickId} onChange={e => setPickId(e.target.value)}>
-            {catalog.map(ct => <option key={ct.id} value={ct.id}>{ct.name}{ct.days ? ` (${ct.days})` : ''}</option>)}
-            <option value="custom">Custom task…</option>
-          </select>
-          {pickId === 'custom' && (
-            <input className="input" style={{ height: 30, fontSize: 12.5, flex: 1, minWidth: 180 }} autoFocus placeholder="Task name" value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
-          )}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
-            Deadline
-            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newDue} onChange={e => setNewDue(e.target.value)} title="Optional deadline for this task" />
-          </label>
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={pickId === 'custom' && !customName.trim()}>Add</button>
-          <button className="btn btn-sm" onClick={() => setAdding(false)}>Cancel</button>
-        </div>
-      )}
-      <div className="grid-scroll">
-        <table className="grid">
-          <thead><tr><th>Task / service</th><th>Status</th><th>Assignee</th><th>Due</th><th style={{ textAlign: 'right' }}>Last activity</th>{canWrite && <th style={{ width: 64 }}></th>}</tr></thead>
-          <tbody>
-            {tasks.map((t, i) => {
-              const m = SUB_META[t.status];
-              return (
-                <tr key={t._key || i}>
-                  <td style={{ fontWeight: 500, color: 'var(--ink)' }}>
-                    {editKey === t._key ? (
-                      <input className="input" autoFocus style={{ height: 28, fontSize: 12.5, width: '100%' }} value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') { onTaskRename(p.id, t._key, editName); setEditKey(null); } if (e.key === 'Escape') setEditKey(null); }}
-                        onBlur={() => { if (editName.trim() && editName.trim() !== t.name) onTaskRename(p.id, t._key, editName); setEditKey(null); }} />
-                    ) : t.name}
-                  </td>
-                  <td>
-                    {canWrite ? (
-                      <select
-                        className="select"
-                        style={{ width: 130, height: 28, fontSize: 12, paddingLeft: 8, borderColor: 'var(--border)', color: m.badge === 'b-warn' ? 'var(--warn)' : m.badge === 'b-amber' ? 'var(--amber)' : m.badge === 'b-ok' ? 'var(--ok)' : 'var(--ink-3)', fontWeight: 600 }}
-                        value={t.status}
-                        onChange={e => onTaskUpdate(p.id, t._key, e.target.value)}
-                      >
-                        <option value="none">Not started</option>
-                        <option value="review">In review</option>
-                        <option value="resubmit">Resubmit</option>
-                        <option value="ok">Approved</option>
-                      </select>
-                    ) : (
-                      <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>
-                    )}
-                  </td>
-                  <td>
-                    {(() => {
-                      const u = users.find(x => x.id === t.assignee);
-                      return canWrite ? (
-                        <select className="select" style={{ width: 168, height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value)}>
-                          <option value="">Unassigned</option>
-                          {users.map(x => {
-                            const l = userLoads && userLoads[x.id];
-                            const over = l && l.load >= l.cap;
-                            return <option key={x.id} value={x.id}>{x.name}{l ? ` — ${l.load}/${l.cap}${over ? ' ⚠ full' : ''}` : ''}</option>;
-                          })}
-                        </select>
-                      ) : u ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                          <span className="avatar" style={{ width: 20, height: 20, background: 'var(--primary)', fontSize: 8.5, borderRadius: '50%', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 600 }}>{u.initials}</span>
-                          {u.name.split(' ')[0]}
-                        </span>
-                      ) : <span style={{ color: 'var(--ink-4)' }}>—</span>;
-                    })()}
-                  </td>
-                  <td>
-                    {(() => {
-                      const overdue = t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0;
-                      return canWrite ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                          <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: 132, borderColor: overdue ? 'var(--warn)' : 'var(--border)', color: overdue ? 'var(--warn)' : 'var(--ink-2)', fontWeight: overdue ? 600 : 400 }} value={t.due || ''} onChange={e => onTaskSetDue(p.id, t._key, e.target.value)} />
-                          {overdue && <span className="badge b-warn" style={{ fontSize: 10 }}>{daysBetween(t.due, TODAY)}d late</span>}
-                        </span>
-                      ) : t.due ? (
-                        <span className="mono" style={{ fontSize: 12, color: overdue ? 'var(--warn)' : 'var(--ink-3)', fontWeight: overdue ? 600 : 400 }}>{fmtShort(t.due)}{overdue ? ` · ${daysBetween(t.due, TODAY)}d late` : ''}</span>
-                      ) : <span style={{ color: 'var(--ink-4)' }}>—</span>;
-                    })()}
-                  </td>
-                  <td className="mono" style={{ textAlign: 'right', fontSize: 12, color: 'var(--ink-3)' }}>{t.date ? `${fmtShort(t.date)}, ${parseDate(t.date).getFullYear()}` : '—'}</td>
-                  {canWrite && (
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px', fontSize: 11 }} title="Rename task" onClick={() => { setEditKey(t._key); setEditName(t.name); }}><ProjIcon name="edit" size={12} /></button>
-                      <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px', color: 'var(--warn)' }} title="Delete task" onClick={() => { if (window.confirm(`Delete “${t.name}” from ${agency.short}?`)) onTaskDelete(p.id, t._key); }}><ProjIcon name="x" size={11} /></button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-            {tasks.length === 0 && <tr><td colSpan={canWrite ? 6 : 5} style={{ color: 'var(--ink-4)' }}>No tasks opened with this agency yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 // ---- utility research module (letters → jurisdiction verification log) ----
 const RESEARCH_TASK_RE = /utility research|research request/i;
@@ -756,17 +621,33 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
   const capStudy = deriveCapacityStudy(p.capacityStudy);
   const [adding, setAdding] = React.useState(false);
   const [name, setName] = React.useState('');
+  const [pickId, setPickId] = React.useState('custom');
   const [newDue, setNewDue] = React.useState('');
   const [newSubmitted, setNewSubmitted] = React.useState(TODAY.toISOString().slice(0, 10));
   const [editKey, setEditKey] = React.useState(null);
   const [editName, setEditName] = React.useState('');
-  const startAdd = () => { setNewSubmitted(TODAY.toISOString().slice(0, 10)); setNewDue(''); setName(''); setAdding(true); };
+  // Task templates from Agency Setup, grouped by the project's agencies. Anything already
+  // on the project drops out so the same template can't be added twice.
+  const catalogGroups = React.useMemo(() => (p.agencies || [])
+    .map(aid => ({ aid, agency: AGENCIES[aid], items: tasksForAgency(aid).filter(ct => !p.tasks.some(t => t.taskId === ct.id)) }))
+    .filter(g => g.agency && g.items.length), [p.agencies, p.tasks]);
+  const findTemplate = (id) => {
+    for (const g of catalogGroups) { const t = g.items.find(x => x.id === id); if (t) return { ...t, aid: g.aid }; }
+    return null;
+  };
+  const pickTemplate = (id) => {
+    setPickId(id);
+    const t = id === 'custom' ? null : findTemplate(id);
+    setName(t ? t.name : '');
+  };
+  const startAdd = () => { setNewSubmitted(TODAY.toISOString().slice(0, 10)); setNewDue(''); setName(''); setPickId('custom'); setAdding(true); };
   const save = () => {
     const n = name.trim();
     if (!n) return;
+    const t = pickId === 'custom' ? null : findTemplate(pickId);
     // date = the submittal date for this task, not a bare "created on" stamp
-    onTaskAdd(p.id, { agency: null, taskId: 'custom-' + Date.now(), name: n, status: 'none', date: newSubmitted || null, due: newDue || null });
-    setAdding(false); setName(''); setNewDue('');
+    onTaskAdd(p.id, { agency: t ? t.aid : null, taskId: t ? t.id : 'custom-' + Date.now(), name: n, status: 'none', date: newSubmitted || null, due: newDue || null });
+    setAdding(false); setName(''); setNewDue(''); setPickId('custom');
   };
   if (!tasks.length && !canWrite) return null;
   return (
@@ -800,6 +681,16 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
       )}
       {adding && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {catalogGroups.length > 0 && (
+            <select className="select" style={{ width: 'auto', minWidth: 200, height: 30, fontSize: 12.5 }} value={pickId} onChange={e => pickTemplate(e.target.value)} title="Templates come from Agency Setup">
+              <option value="custom">Custom task…</option>
+              {catalogGroups.map(g => (
+                <optgroup key={g.aid} label={g.agency.name}>
+                  {g.items.map(ct => <option key={ct.id} value={ct.id}>{ct.name}{ct.days ? ` (${ct.days})` : ''}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          )}
           <input className="input" autoFocus style={{ height: 30, fontSize: 12.5, flex: 1, minWidth: 180 }} placeholder="Task — e.g. Existing Utility Plan" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); }} />
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
             Submitted

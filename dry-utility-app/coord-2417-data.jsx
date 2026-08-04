@@ -368,8 +368,8 @@ const FRONTIER = {
   ],
 };
 
-const TWC = {
-  id: 'twc', utility: 'Spectrum', utilityFull: 'Spectrum',
+const SPECTRUM = {
+  id: 'spectrum', utility: 'Spectrum', utilityFull: 'Spectrum',
   track: 'Backbone', tag: 'SPC',
   groups: [
     { name: 'Spectrum Backbone Submittal', steps: [
@@ -393,7 +393,7 @@ const TWC = {
 const JOB2417 = {
   code: '2417', name: 'Arroyos Desert Princess', client: 'Mike Pike',
   clientContact: 'Matt Dobson 909 635-4712, General Manager · Peter Varber Meyden 909 522-0051, Site Super',
-  tracks: { SCE_R15, SCE_R16, GAS_BACKBONE, GAS_METERS, FRONTIER, TWC },
+  tracks: { SCE_R15, SCE_R16, GAS_BACKBONE, GAS_METERS, FRONTIER, SPECTRUM },
 };
 
 // Open items across the whole job (for board + alert views), derived live.
@@ -410,7 +410,7 @@ function openItems() {
   GAS_BACKBONE.groups.forEach((g) => push(GAS_BACKBONE, null, g));
   GAS_METERS.phases.forEach((p) => p.state !== 'done' && push(GAS_METERS, p.name, p));
   FRONTIER.groups.forEach((g) => push(FRONTIER, null, g));
-  TWC.groups.forEach((g) => push(TWC, null, g));
+  SPECTRUM.groups.forEach((g) => push(SPECTRUM, null, g));
   return items.sort((a, b) => (b.days || 0) - (a.days || 0));
 }
 

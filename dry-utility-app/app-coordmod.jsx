@@ -4,7 +4,27 @@
 // Views: track tabs with steppers, or ball-in-court board. Nudges for stale hand-offs.
 
 const CM_KEY = 'msa_app_coordmod_v1';
-function cmLoad() { try { return JSON.parse(localStorage.getItem(CM_KEY)) || {}; } catch (e) { return {}; } }
+// The Spectrum track shipped under the id 'twc'. Rewrite any stored reference on load
+// so projects saved before the rename keep their milestones, owners, and deadlines.
+function cmMigrateTwc(d) {
+  let changed = false;
+  const renameKey = (o) => { if (o && o.twc !== undefined) { if (o.spectrum === undefined) o.spectrum = o.twc; delete o.twc; changed = true; } };
+  Object.values(d).forEach(pd => {
+    if (!pd || typeof pd !== 'object') return;
+    if (Array.isArray(pd.tracks) && pd.tracks.includes('twc')) { pd.tracks = pd.tracks.map(t => t === 'twc' ? 'spectrum' : t); changed = true; }
+    (pd.items || []).forEach(it => { if (it.track === 'twc') { it.track = 'spectrum'; changed = true; } });
+    ['ms', 'owners', 'deps', 'fin'].forEach(k => renameKey(pd[k]));
+    Object.values(pd.deps || {}).forEach(dep => { if (dep && dep.track === 'twc') { dep.track = 'spectrum'; changed = true; } });
+  });
+  return changed;
+}
+function cmLoad() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CM_KEY)) || {};
+    if (cmMigrateTwc(d)) { try { localStorage.setItem(CM_KEY, JSON.stringify(d)); } catch (e) {} }
+    return d;
+  } catch (e) { return {}; }
+}
 function cmPersist(d) { try { localStorage.setItem(CM_KEY, JSON.stringify(d)); } catch (e) {} window.dispatchEvent(new Event('msa-coord-updated')); }
 
 const CM_STATIONS = [
@@ -38,9 +58,10 @@ const CM_MILESTONES = {
   gasbb: ['Application submitted', 'Design deposit paid', 'Main extension design received', 'Contract executed', 'Construction scheduled', 'Gas main installed'],
   gasmtr: ['Meter application submitted', 'Meter set schedule received', 'Houselines inspected', 'Meters set'],
   frontier: ['Joint trench application submitted', 'Composite design received', 'JT agreement executed', 'Facilities placed'],
-  twc: ['Application submitted', 'Design received', 'Agreement executed', 'Cable placed'],
+  spectrum: ['Application submitted', 'Design received', 'Agreement executed', 'Cable placed'],
 };
-// typical days from the previous milestone (index-aligned with CM_MILESTONES); admins can tune via the Task catalog page
+// typical days from the previous milestone (index-aligned with CM_MILESTONES);
+// admins tune these on the Utility Coordination page's Durations tab
 const CM_DUR_KEY = 'msa_app_cmdur_v1';
 const CM_MS_DUR_DEFAULT = {
   sce15: [14, 14, 42, 21, 14, 30, 45],
@@ -48,9 +69,19 @@ const CM_MS_DUR_DEFAULT = {
   gasbb: [14, 14, 56, 21, 30, 45],
   gasmtr: [14, 21, 30, 14],
   frontier: [14, 42, 21, 60],
-  twc: [14, 42, 21, 60],
+  spectrum: [14, 42, 21, 60],
 };
-function cmDurLoadOv() { try { return JSON.parse(localStorage.getItem(CM_DUR_KEY)) || {}; } catch (e) { return {}; } }
+function cmDurLoadOv() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CM_DUR_KEY)) || {};
+    if (d.twc !== undefined) { // pre-rename Spectrum overrides
+      if (d.spectrum === undefined) d.spectrum = d.twc;
+      delete d.twc;
+      try { localStorage.setItem(CM_DUR_KEY, JSON.stringify(d)); } catch (e) {}
+    }
+    return d;
+  } catch (e) { return {}; }
+}
 function cmDur(trackId) { const ov = cmDurLoadOv(); return ov[trackId] || CM_MS_DUR_DEFAULT[trackId] || []; }
 function cmDurPersist(ov) { try { localStorage.setItem(CM_DUR_KEY, JSON.stringify(ov)); } catch (e) {} window.dispatchEvent(new Event('msa-coord-updated')); }
 const CM_TRACKS = [
@@ -59,7 +90,7 @@ const CM_TRACKS = [
   { id: 'gasbb', lab: 'Gas Co — Backbone', agency: 'socalgas' },
   { id: 'gasmtr', lab: 'Gas Co — Meters', agency: 'socalgas' },
   { id: 'frontier', lab: 'Frontier', agency: 'frontier' },
-  { id: 'twc', lab: 'Spectrum', agency: 'spectrum' },
+  { id: 'spectrum', lab: 'Spectrum', agency: 'spectrum' },
 ];
 
 function CoordModule({ p, canWrite, currentUser, users }) {

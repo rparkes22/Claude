@@ -214,92 +214,97 @@ function removeAgency(id) {
   persistCustomAgencies(next);
 }
 
-// Tasks offered per agency (typical durations shown as guidance)
+// Coordination tasks offered per agency (typical durations shown as guidance).
+//
+// Two layers, so a template is written once and reaches every agency it applies to:
+//   KIND_TASKS   — shared per agency kind; every agency of that kind inherits them,
+//                  including custom agencies an admin adds later.
+//   AGENCY_TASKS — only what is genuinely specific to one agency, layered on top.
+// Research request letters are NOT here — the Utility Research module owns those.
+const AGENCY_KINDS = ['Electric', 'Gas', 'Water', 'Sewer', 'Telecom', 'Municipal', 'County', 'Other'];
+const KIND_TASKS = {
+  Electric: [
+    { id: 'k-el-load', name: 'Load calculation package',     days: '2–3 wks' },
+    { id: 'k-el-app',  name: 'Service application',          days: '1–2 wks' },
+    { id: 'k-el-dsgn', name: 'Service design submittal',     days: '6–10 wks' },
+  ],
+  Gas: [
+    { id: 'k-gas-ws',   name: 'Gas will-serve request',      days: '2–4 wks' },
+    { id: 'k-gas-main', name: 'Main extension design',       days: '6–8 wks' },
+    { id: 'k-gas-stub', name: 'Service stub coordination',   days: '2–3 wks' },
+  ],
+  Water: [
+    { id: 'k-wtr-ws',  name: 'Water will-serve request',     days: '4–6 wks' },
+    { id: 'k-wtr-poc', name: 'Point-of-connection review',   days: '3–4 wks' },
+  ],
+  Sewer: [
+    { id: 'k-swr-cap', name: 'Sewer capacity / will-serve',  days: '4–6 wks' },
+    { id: 'k-swr-poc', name: 'Point-of-connection review',   days: '3–4 wks' },
+  ],
+  Telecom: [
+    { id: 'k-tel-jt',   name: 'Joint trench design',         days: '4–6 wks' },
+    { id: 'k-tel-rel',  name: 'Facility relocation coordination', days: 'varies' },
+    { id: 'k-tel-conf', name: 'Utility conflict review',     days: '2–3 wks' },
+  ],
+  Municipal: [
+    { id: 'k-mun-enc', name: 'Encroachment permit',          days: '3–6 wks' },
+    { id: 'k-mun-imp', name: 'Street improvement plan review', days: '6–10 wks' },
+    { id: 'k-mun-tcp', name: 'Traffic control plan',         days: '2–4 wks' },
+  ],
+  County: [
+    { id: 'k-cty-enc', name: 'Encroachment permit',          days: '3–6 wks' },
+    { id: 'k-cty-rd',  name: 'Road improvement plan review', days: '6–10 wks' },
+    { id: 'k-cty-tcp', name: 'Traffic control plan',         days: '2–4 wks' },
+  ],
+  Other: [],
+};
 const AGENCY_TASKS = {
   iid:      [
     { id: 'iid-wsl',  name: 'Will Serve Letter application', days: '4–8 wks' },
-    { id: 'iid-load', name: 'Electrical load study',         days: '2–4 wks' },
-    { id: 'iid-dsgn', name: 'Service design submittal',      days: '6–10 wks' },
+    { id: 'iid-cap',  name: 'Capacity study submittal',      days: '7 wks' },
     { id: 'iid-ext',  name: 'WSL extension request',         days: '2–3 wks' },
   ],
   sce:      [
     { id: 'sce-ear',  name: 'Electrical analysis review',    days: '8–12 wks' },
-    { id: 'sce-load', name: 'Load calculation package',      days: '2–3 wks' },
-    { id: 'sce-app',  name: 'Service application',           days: '1–2 wks' },
     { id: 'sce-r20',  name: 'Rule 20 undergrounding coordination', days: 'varies' },
   ],
-  socalgas: [
-    { id: 'scg-ws',   name: 'Gas will-serve request',        days: '2–4 wks' },
-    { id: 'scg-main', name: 'Main extension design',         days: '6–8 wks' },
-    { id: 'scg-stub', name: 'Service stub coordination',     days: '2–3 wks' },
-  ],
   scgt:     [
-    { id: 'scgt-res', name: 'Utility research request',      days: '2–4 wks' },
     { id: 'scgt-xng', name: 'Transmission crossing review',  days: '6–10 wks' },
   ],
-  dwa:      [
-    { id: 'dwa-res',  name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'dwa-ws',   name: 'Water will-serve request',      days: '4–6 wks' },
-  ],
-  hdwd:     [
-    { id: 'hdwd-res', name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'hdwd-ws',  name: 'Water will-serve request',      days: '4–6 wks' },
-  ],
-  mswd:     [
-    { id: 'mswd-res', name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'mswd-ws',  name: 'Water/sewer will-serve request', days: '4–6 wks' },
-  ],
-  att:      [
-    { id: 'att-jt',   name: 'Joint trench design',           days: '4–6 wks' },
-    { id: 'att-fib',  name: 'Fiber relocation coordination', days: 'varies' },
-    { id: 'att-conf', name: 'Utility conflict review',       days: '2–3 wks' },
-  ],
-  frontier: [
-    { id: 'ftr-jt',   name: 'Joint trench design',           days: '4–6 wks' },
-    { id: 'ftr-rel',  name: 'Facility relocation coordination', days: 'varies' },
-  ],
   cvwd:     [
-    { id: 'cvwd-res', name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'cvwd-ws',  name: 'Water/drain will-serve request', days: '4–6 wks' },
-  ],
-  vsd:      [
-    { id: 'vsd-res',  name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'vsd-cap',  name: 'Sewer capacity / will-serve',   days: '4–6 wks' },
-  ],
-  iwa:      [
-    { id: 'iwa-res',  name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'iwa-ws',   name: 'Water will-serve request',      days: '4–6 wks' },
-  ],
-  myoma:    [
-    { id: 'myo-res',  name: 'Utility research request',      days: '2–4 wks' },
-  ],
-  spectrum: [
-    { id: 'spc-res',  name: 'Utility research request',      days: '2–4 wks' },
-    { id: 'spc-rel',  name: 'Facility relocation coordination', days: 'varies' },
-  ],
-  sprint:   [
-    { id: 'spr-res',  name: 'Utility research request',      days: '2–4 wks' },
-  ],
-  municipal: [
-    { id: 'mun-enc',  name: 'Encroachment permit',           days: '3–6 wks' },
-    { id: 'mun-imp',  name: 'Street improvement plan review', days: '6–10 wks' },
-    { id: 'mun-tcp',  name: 'Traffic control plan',          days: '2–4 wks' },
+    { id: 'cvwd-drn', name: 'Drainage crossing review',      days: '4–6 wks' },
   ],
 };
-const tasksForAgency = (aid) => {
-  const cat = loadTaskCatalog();
-  const ov = (cat._ov && cat._ov[aid]) || {};
-  const isCustomAgency = AGENCIES[aid] && AGENCIES[aid].custom;
-  const base = isCustomAgency ? [] : (AGENCY_TASKS[aid] || AGENCY_TASKS.municipal)
-    .map(t => ov[t.id] ? { ...t, ...ov[t.id] } : t)
-    .filter(t => !t.removed);
-  const custom = cat[aid] || [];
-  return [...base, ...custom];
-};
-// Admin-defined catalog tasks (persisted)
+
+// Admin-defined catalog tasks (persisted).
+//   { [agencyId]: [customTask], _ov: { [agencyId]: { [taskId]: patch } },
+//     _kind: { [kind]: { ov: { [taskId]: patch }, add: [customTask] } } }
+// A patch of { removed: true } hides a built-in template without deleting it.
 const CATALOG_KEY = 'msa_app_task_catalog_v1';
 function loadTaskCatalog() { try { return JSON.parse(localStorage.getItem(CATALOG_KEY)) || {}; } catch (e) { return {}; } }
 function persistTaskCatalog(c) { try { localStorage.setItem(CATALOG_KEY, JSON.stringify(c)); } catch (e) {} }
+
+// Shared templates for one agency kind, with admin edits/additions applied.
+function tasksForKind(kind, cat) {
+  const c = cat || loadTaskCatalog();
+  const k = (c._kind && c._kind[kind]) || {};
+  const ov = k.ov || {};
+  const base = (KIND_TASKS[kind] || [])
+    .map(t => ov[t.id] ? { ...t, ...ov[t.id], edited: !!(ov[t.id].name || ov[t.id].days) } : t)
+    .filter(t => !t.removed);
+  return [...base, ...(k.add || [])].map(t => ({ ...t, shared: true, kind }));
+}
+// Everything an agency offers: shared kind templates + agency-specific + admin customs.
+// Per-agency overrides win, so a shared template can be renamed or hidden for one agency.
+const tasksForAgency = (aid) => {
+  const cat = loadTaskCatalog();
+  const ov = (cat._ov && cat._ov[aid]) || {};
+  const kind = (AGENCIES[aid] || {}).kind;
+  const base = [...tasksForKind(kind, cat), ...(AGENCY_TASKS[aid] || [])]
+    .map(t => ov[t.id] ? { ...t, ...ov[t.id], edited: !!(ov[t.id].name || ov[t.id].days) } : t)
+    .filter(t => !t.removed);
+  return [...base, ...(cat[aid] || [])];
+};
 
 // ===== PROJECTS (progress/pct intentionally removed) =====
 const SEED_PROJECTS = [
@@ -336,7 +341,7 @@ const SEED_PROJECTS = [
       { id: 'r-scgd', agency: 'socalgas', label: 'Gas — Distribution',         sent: '2026-05-12', received: '2026-05-28', to: 'SCGSERegionRedlands…@semprautilities.com', file: 'uploads/Gas-Distribution Research Letter.pdf' },
       { id: 'r-scgt', agency: 'scgt',     label: 'Gas — Transmission',         sent: '2026-05-12', received: null, to: 'socalgastransmission…@semprautilities.com', file: 'uploads/Gas-Transmission Research Letter.pdf' },
       { id: 'r-ftr',  agency: 'frontier', label: 'Telephone (Frontier)',       sent: '2026-05-12', received: null, to: 'lisa.jacobson@dynamictelco.com', file: 'uploads/Frontier Research Letter.pdf' },
-      { id: 'r-spc',  agency: 'spectrum', label: 'Cable (Spectrum)',     sent: '2026-05-12', received: null, to: 'DL-Socal-charter-engineering@charter.com', file: 'uploads/Spectrum -TWC Research Letter.pdf' },
+      { id: 'r-spc',  agency: 'spectrum', label: 'Cable (Spectrum)',     sent: '2026-05-12', received: null, to: 'DL-Socal-charter-engineering@charter.com', file: 'uploads/Spectrum Research Letter.pdf' },
       { id: 'r-spr',  agency: 'sprint',   label: 'Fiber (Sprint / Cogent)',    sent: '2026-05-12', received: null, to: 'jyork@cogentco.com', file: 'uploads/Sprint Research Letter.pdf' },
     ],
     exhibits: [{ name: 'RFP 3102 — Project Exhibit', file: 'uploads/P3102 Exhibit.pdf' }],
@@ -605,7 +610,8 @@ Object.assign(window, {
   SEED_USERS, ROLE_META, PERMS, can,
   backdropClose,
   loadUsers, persistUsers, loadSession, persistSession, loadUserProjects, persistUserProjects,
-  CITY_AGENCIES, CITIES, AGENCIES, AGENCY_TASKS, tasksForAgency, loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
+  CITY_AGENCIES, CITIES, AGENCIES, AGENCY_KINDS, AGENCY_TASKS, KIND_TASKS, tasksForAgency, tasksForKind,
+  loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
   addCity, updateCityAgencies, removeCity, restoreCity, isCustomCity, isEditedCity, removedCities,
   SEED_PROJECTS, deriveWsl, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
 });

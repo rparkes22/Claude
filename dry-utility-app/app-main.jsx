@@ -1328,7 +1328,7 @@ function App() {
   if (!currentUser) return <LoginScreen users={users} onLogin={login} />;
 
   const openProject = openProjectId ? projects.find(x => x.id === openProjectId) : null;
-  const pageTitle = openProject ? 'Project' : page === 'dash' ? 'Dashboard' : page === 'tracker' ? 'Projects' : page === 'research' ? 'Utility Research' : page === 'coord' ? 'Utility Coordination' : page === 'team' ? 'Team Workload' : page === 'wsl' ? 'Will Serve Letters' : page === 'reports' ? 'Client Reports' : page === 'catalog' ? 'Agencies & Contacts' : 'Users & Permissions';
+  const pageTitle = openProject ? 'Project' : page === 'dash' ? 'Dashboard' : page === 'tracker' ? 'Projects' : page === 'research' ? 'Utility Research' : page === 'coord' ? 'Utility Coordination' : page === 'team' ? 'Team Workload' : page === 'wsl' ? 'Will Serve Letters' : page === 'reports' ? 'Client Reports' : page === 'catalog' ? 'Agency Setup' : 'Users & Permissions';
   const existingCodes = projects.map(p => p.code.toUpperCase());
 
   return (
@@ -1351,7 +1351,7 @@ function App() {
               <span className="sn-count">{users.length}</span>
             </button>
             <button className={`sn-item ${page === 'catalog' ? 'active' : ''}`} onClick={() => { setPage('catalog'); setOpenProjectId(null); }}>
-              <Icon name="file" />Task catalog
+              <Icon name="file" />Agency setup
             </button>
           </>
         )}
@@ -1406,7 +1406,7 @@ function App() {
               {page === 'dash' && <DashPage projects={activeProjects} users={users} currentUser={currentUser} onOpenProject={setOpenProjectId} onGoPage={setPage} />}
               {page === 'tracker' && <TrackerPage projects={activeProjects} completed={projects.filter(p => p.phase === 'Complete')} canWrite={canWrite} onAddClick={() => setWizardOpen(true)} onWslAction={onWslAction} showToast={showToast} onOpenProject={setOpenProjectId} />}
               {page === 'research' && <ResearchPage projects={activeProjects} onOpenProject={setOpenProjectId} />}
-              {page === 'coord' && <CoordPage projects={activeProjects} onOpenProject={setOpenProjectId} users={users} />}
+              {page === 'coord' && <CoordPage projects={activeProjects} onOpenProject={setOpenProjectId} users={users} isAdmin={isAdmin} showToast={showToast} />}
               {page === 'wsl' && <WslPage projects={activeProjects} canWrite={canWrite} onWslAction={onWslAction} onOpenProject={setOpenProjectId} showToast={showToast} />}
               {page === 'reports' && <ReportsPage projects={projects} canWrite={canWrite} showToast={showToast} initialCode={reportCode} />}
               {page === 'team' && <TeamPage projects={activeProjects} users={users} canWrite={canWrite} onTaskAssign={onTaskAssign} onOpenProject={setOpenProjectId} showToast={showToast} />}

@@ -1,6 +1,8 @@
-// Blueprint — Utility Coordination page: every hand-off across every project.
-function CoordPage({ projects, onOpenProject, users }) {
-  const [view, setView] = React.useState('tracks'); // tracks | handoffs
+// Blueprint — Utility Coordination page: every hand-off across every project,
+// plus the admin editor for typical milestone durations (they drive the deadlines
+// shown on this page, so they live here rather than on the setup page).
+function CoordPage({ projects, onOpenProject, users, isAdmin, showToast }) {
+  const [view, setView] = React.useState('tracks'); // tracks | handoffs | durations
   const [filter, setFilter] = React.useState('all'); // all | msa | client | utility | stale
   const [q, setQ] = React.useState('');
   const [, bump] = React.useReducer(x => x + 1, 0);
@@ -79,7 +81,7 @@ function CoordPage({ projects, onOpenProject, users }) {
   );
   return (
     <div>
-      {view === 'tracks' ? (
+      {view === 'durations' ? null : view === 'tracks' ? (
         <div className="kpis" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           <KPI id="all" n={trkOpen.length} lab="Active tracks" tint="var(--primary-tint)" color="var(--primary)" icon="tracker" />
           <KPI id="stale" n={trkOverdue.length} lab="With overdue milestones" tint="var(--warn-tint)" color="var(--warn)" icon="alert" />
@@ -99,15 +101,20 @@ function CoordPage({ projects, onOpenProject, users }) {
         <div className="lens" style={{ padding: 2, marginRight: 10 }}>
           <button className={view === 'tracks' ? 'active' : ''} style={{ height: 24, fontSize: 11 }} onClick={() => { setView('tracks'); setFilter('all'); }}>Tracks</button>
           <button className={view === 'handoffs' ? 'active' : ''} style={{ height: 24, fontSize: 11 }} onClick={() => { setView('handoffs'); setFilter('all'); }}>Hand-offs</button>
+          {isAdmin && <button className={view === 'durations' ? 'active' : ''} style={{ height: 24, fontSize: 11 }} onClick={() => { setView('durations'); setFilter('all'); }}>Durations</button>}
         </div>
-        <div className="search-box">
-          <Icon name="search" />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search projects, items, agencies…" />
-        </div>
+        {view !== 'durations' && (
+          <div className="search-box">
+            <Icon name="search" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search projects, items, agencies…" />
+          </div>
+        )}
         <div className="toolbar-spacer"></div>
-        <span className="meta" style={{ fontSize: 12, color: 'var(--ink-4)' }}>{view === 'tracks' ? `${shownTracks.length} of ${trackRows.length} tracks` : `${shown.length} of ${rows.length} hand-offs`}</span>
+        <span className="meta" style={{ fontSize: 12, color: 'var(--ink-4)' }}>{view === 'durations' ? 'Typical days between milestones' : view === 'tracks' ? `${shownTracks.length} of ${trackRows.length} tracks` : `${shown.length} of ${rows.length} hand-offs`}</span>
       </div>
-      {view === 'tracks' ? (
+      {view === 'durations' ? (
+        <CoordDurationsPanel showToast={showToast} />
+      ) : view === 'tracks' ? (
       <div className="grid-wrap">
         <div className="grid-scroll">
           <table className="grid">
@@ -176,4 +183,55 @@ function CoordPage({ projects, onOpenProject, users }) {
     </div>
   );
 }
-Object.assign(window, { CoordPage });
+// Admin editor for each track's typical milestone durations — these drive the
+// auto-set deadlines on every project's coordination tracks.
+function CoordDurationsPanel({ showToast }) {
+  const [, bump] = React.useReducer(x => x + 1, 0);
+  if (typeof CM_TRACKS === 'undefined' || typeof CM_MILESTONES === 'undefined') return null;
+  const ov = cmDurLoadOv();
+  const setDur = (tid, idx, val) => {
+    const cur = (ov[tid] || CM_MS_DUR_DEFAULT[tid] || []).slice();
+    const n = parseInt(val, 10);
+    cur[idx] = isNaN(n) || n < 1 ? (CM_MS_DUR_DEFAULT[tid] || [])[idx] || 21 : n;
+    cmDurPersist({ ...ov, [tid]: cur }); bump();
+  };
+  const resetTrack = (tid) => { const next = { ...ov }; delete next[tid]; cmDurPersist(next); bump(); showToast('Durations reset to defaults'); };
+  return (
+    <div>
+      <div className="callout info" style={{ marginBottom: 14 }}>
+        <Icon name="alert" size={16} />
+        <div><b>Typical durations.</b> Days from the previous milestone. Changing one re-dates the upcoming deadlines on every project running that track.</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'start' }}>
+        {CM_TRACKS.map(t => {
+          const defs = CM_MILESTONES[t.id] || [];
+          const durs = ov[t.id] || CM_MS_DUR_DEFAULT[t.id] || [];
+          const edited = !!ov[t.id] && JSON.stringify(ov[t.id]) !== JSON.stringify(CM_MS_DUR_DEFAULT[t.id]);
+          const total = durs.slice(0, defs.length).reduce((s, d) => s + (d || 0), 0);
+          return (
+            <div className="panel" key={t.id}>
+              <div className="panel-hd">
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{t.lab}{edited && <span className="badge b-amber">edited</span>}</h2>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span className="meta" style={{ fontSize: 11 }}>≈ {Math.round(total / 7)} wks end-to-end</span>
+                  {edited && <button className="btn btn-ghost btn-sm" style={{ height: 22, fontSize: 10.5 }} onClick={() => resetTrack(t.id)}>reset</button>}
+                </span>
+              </div>
+              <div style={{ padding: '6px 16px 12px' }}>
+                {defs.map((lab, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+                    <span style={{ flex: 1, color: 'var(--ink-2)' }}>{i + 1}. {lab}</span>
+                    <input type="number" min="1" className="input" style={{ width: 62, height: 24, fontSize: 11.5, textAlign: 'right' }} value={durs[i] || ''} onChange={e => setDur(t.id, i, e.target.value)} />
+                    <span style={{ fontSize: 10.5, color: 'var(--ink-4)', width: 26 }}>days</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { CoordPage, CoordDurationsPanel });

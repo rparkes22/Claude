@@ -38,6 +38,26 @@ Work a client had done before the project reached us can be marked complete duri
 project creation — Utility Research and the Existing Utility Plan are then recorded as
 finished rather than started from scratch.
 
+## Agency Setup (admin)
+
+One page, three tabs, and the agency row is the unit of everything:
+
+- **Agencies** — grouped by kind and collapsed to a line each. Expand one to edit its
+  identity, its letter contacts, and its coordination task templates in place.
+- **Cities** — which agencies serve where; this drives the Add Project wizard.
+- **Shared templates** — task templates defined once per agency *kind*
+  (Electric, Gas, Water, Sewer, Telecom, Municipal, County). Every agency of that kind
+  inherits them, including agencies added later. An individual agency can rename or hide
+  an inherited template for itself without affecting the rest.
+
+Templates surface on a project under **+ Add task**, grouped by the project's agencies,
+with a free-text custom entry always available. Anything already on the project drops out
+of the list. Research request letters are deliberately *not* templates here — the Utility
+Research module owns those.
+
+Coordination milestone durations live on the Utility Coordination page's **Durations**
+tab, next to the deadlines they drive.
+
 ### IID: Capacity Study vs. Will Serve Letter
 
 For IID, clients often ask for a **Capacity Study Submittal** before committing to the

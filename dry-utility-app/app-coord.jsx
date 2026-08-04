@@ -72,7 +72,7 @@ function coordTracksFor(p) {
   if (p.agencies.includes('sce')) out.push(T.SCE_R15, T.SCE_R16);
   if (p.agencies.includes('socalgas')) out.push(T.GAS_BACKBONE, T.GAS_METERS);
   if (p.agencies.includes('frontier')) out.push(T.FRONTIER);
-  if (p.agencies.includes('att')) out.push(T.TWC);
+  if (p.agencies.includes('att')) out.push(T.SPECTRUM);
   if (out.length === 0) out.push(T.GAS_BACKBONE); // fallback so section never renders empty
   return out;
 }
