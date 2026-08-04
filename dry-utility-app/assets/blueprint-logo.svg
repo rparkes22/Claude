@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img" aria-label="Blueprint">
+  <!--
+    Blueprint app mark — the MSA "MS" monogram drafted on a blueprint field.
+    Hand-rebuilt in vector from the supplied artwork; drop the original in at this
+    path (same filename) to replace it.
+  -->
+  <defs>
+    <radialGradient id="bpField" cx="0.5" cy="0.44" r="0.8">
+      <stop offset="0" stop-color="#12437f"/>
+      <stop offset="0.65" stop-color="#0d3468"/>
+      <stop offset="1" stop-color="#082445"/>
+    </radialGradient>
+    <pattern id="bpGridSm" width="25" height="25" patternUnits="userSpaceOnUse">
+      <path d="M25 0H0V25" fill="none" stroke="#7fc0ff" stroke-opacity="0.12" stroke-width="1"/>
+    </pattern>
+    <pattern id="bpGridLg" width="125" height="125" patternUnits="userSpaceOnUse">
+      <path d="M125 0H0V125" fill="none" stroke="#7fc0ff" stroke-opacity="0.16" stroke-width="1.4"/>
+    </pattern>
+    <filter id="bpGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feFlood flood-color="#6bb6ff" flood-opacity="0.9"/>
+      <feComposite in2="b" operator="in" result="g"/>
+      <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1000" height="1000" fill="url(#bpField)"/>
+  <rect width="1000" height="1000" fill="url(#bpGridSm)"/>
+  <rect width="1000" height="1000" fill="url(#bpGridLg)"/>
+
+  <!-- drafting frame, registration marks, construction geometry -->
+  <g fill="none" stroke="#cfe6ff" stroke-opacity="0.42" stroke-width="1.6">
+    <path d="M44 44H956V956H44Z"/>
+    <g stroke-opacity="0.3" stroke-dasharray="9 7">
+      <path d="M44 44 956 956M956 44 44 956"/>
+    </g>
+    <g stroke-opacity="0.26" stroke-dasharray="11 9">
+      <circle cx="500" cy="497" r="300"/>
+      <circle cx="500" cy="497" r="204"/>
+    </g>
+    <path d="M44 497H956M500 44V956" stroke-opacity="0.32"/>
+    <g stroke-opacity="0.75">
+      <circle cx="44" cy="44" r="14"/><circle cx="956" cy="44" r="14"/>
+      <circle cx="44" cy="956" r="14"/><circle cx="956" cy="956" r="14"/>
+      <circle cx="500" cy="44" r="14"/><circle cx="500" cy="956" r="14"/>
+      <circle cx="44" cy="497" r="14"/><circle cx="956" cy="497" r="14"/>
+    </g>
+  </g>
+
+  <!-- corner brackets: the square corner cut back by the monogram circle -->
+  <g fill="none" stroke="#dceeff" stroke-opacity="0.8" stroke-width="3">
+    <path d="M86 258V86H258A452 452 0 0 0 86 258Z"/>
+    <path d="M914 258V86H742A452 452 0 0 1 914 258Z"/>
+    <path d="M86 736V908H258A452 452 0 0 1 86 736Z"/>
+    <path d="M914 736V908H742A452 452 0 0 0 914 736Z"/>
+  </g>
+
+  <!-- MONOGRAM -->
+  <g fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round" filter="url(#bpGlow)">
+    <!-- M — curved left stem -->
+    <path d="M500 87A410 410 0 0 0 500 907L500 772A275 275 0 0 1 500 222Z"/>
+    <!-- M — inner stroke, peaked at the top -->
+    <path d="M276 905V298L338 150L374 232V905Z"/>
+    <!-- M — right stem, rising to the top of the circle -->
+    <path d="M398 905V270L468 88H500V905Z"/>
+
+    <!-- S — upper bowl -->
+    <path d="M512 86A410 410 0 0 1 908 430L795 430A296 296 0 0 0 512 205Z"/>
+    <!-- S — spine and lower bowl -->
+    <path d="M512 452H905A412 412 0 0 1 512 907V800A300 300 0 0 0 793 560H512Z"/>
+    <!-- S — lower terminal -->
+    <path d="M520 596H602V900H520Z"/>
+  </g>
+</svg>

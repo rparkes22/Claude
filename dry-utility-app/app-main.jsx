@@ -1331,8 +1331,9 @@ function App() {
     <div className="shell">
       <nav className="sidenav">
         <div className="sn-brand">
-          <img className="sn-logo" src="assets/msa-logo.svg" alt="MSA Consulting, Inc." />
-          <div className="sn-sub">Blueprint</div>
+          <img className="sn-mark" src="assets/blueprint-logo.svg" alt="" />
+          <div className="sn-wordmark">Blueprint</div>
+          <div className="sn-sub">MSA Consulting</div>
         </div>
         {PAGES.map(pg => (
           <button key={pg.id} className={`sn-item ${page === pg.id && !openProject ? 'active' : ''}`} onClick={() => { setPage(pg.id); setOpenProjectId(null); }}>

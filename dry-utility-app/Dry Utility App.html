@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MSA Blueprint</title>
+<link rel="icon" type="image/svg+xml" href="assets/blueprint-logo.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -50,9 +51,9 @@
   .login-wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(160deg, #fafaf9 0%, #eef1f5 100%); padding: 24px; }
   .login-card { width: 400px; max-width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 34px 34px 28px; }
   .login-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 26px; }
-  .login-mark { width: 44px; height: 44px; background: var(--ink); color: white; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 20px; }
-  .login-name { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
   .login-tag { font-size: 12px; color: var(--ink-3); }
+  .login-mark { width: 64px; height: 64px; border-radius: 12px; display: block; flex: none; }
+  .login-wordmark { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
   .login-h { font-size: 15px; font-weight: 600; margin: 0 0 16px; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
@@ -79,11 +80,11 @@
   /* ===== APP SHELL ===== */
   .shell { display: grid; grid-template-columns: 216px 1fr; min-height: 100vh; }
   .sidenav { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
-  .sn-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 4px 8px 16px; }
-  .sn-logo { display: block; width: 100%; max-width: 168px; height: auto; }
-  .sn-brand .sn-sub { padding-left: 38px; }
-  .sn-mark { width: 30px; height: 30px; background: var(--ink); color: white; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
-  .sn-name { font-weight: 700; font-size: 14px; line-height: 1.1; }
+  /* app brand: the Blueprint mark, then the product name, then who it's for */
+  .sn-brand { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 4px 8px 16px; }
+  .sn-mark { grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 8px; display: block; }
+  .sn-wordmark { font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; align-self: end; }
+  .sn-brand .sn-sub { align-self: start; white-space: nowrap; }
   .sn-sub { font-size: 10.5px; color: var(--ink-3); }
   .sn-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; border: 0; background: none; font-family: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; text-align: left; width: 100%; }
   .sn-item svg { width: 15px; height: 15px; color: var(--ink-3); flex-shrink: 0; }

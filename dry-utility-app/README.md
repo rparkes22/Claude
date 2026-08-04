@@ -82,11 +82,18 @@ dependable: negative offsets into the `@page` margin get clipped, and page one i
 Letters pass `singlePage`, which fixes the table to one page so the contact line sits at
 the page foot rather than tucked under a short letter.
 
-Two SVGs, both placeholders drawn to match the letterhead — drop the official artwork in
-at the same paths and it updates everywhere at once:
+Two marks, kept deliberately separate:
 
-- `assets/msa-mark.svg` — the circular MS monogram, used on letters and reports.
-- `assets/msa-logo.svg` — the nav/login lockup.
+- `assets/blueprint-logo.svg` — the **app** logo: the MS monogram drafted on a blueprint
+  field. Used in the sidebar, on the login screen, and as the browser-tab icon.
+- `assets/msa-mark.svg` — the **letterhead** mark: the circular MS monogram in the firm's
+  orange. Used on letters and reports.
+
+Client-facing documents carry the letterhead mark, not the app badge — the blueprint
+styling belongs to the tool, not to MSA's correspondence.
+
+Both SVGs are hand-rebuilt stand-ins for the real artwork. Drop the official files in at
+the same paths and everything picks them up with no code changes.
 
 ## Data & attachments (Supabase)
 
