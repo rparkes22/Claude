@@ -1,4 +1,4 @@
-// Dry Utility App — Utility Coordination module (generic, per-project).
+// Blueprint — Utility Coordination module (generic, per-project).
 // Hand-off items per utility track: Received from utility → Sent to client →
 // Back from client → Forwarded to utility. Ball-in-court derived from the log.
 // Views: track tabs with steppers, or ball-in-court board. Nudges for stale hand-offs.

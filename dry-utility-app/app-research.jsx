@@ -1,4 +1,4 @@
-// Dry Utility App — Utility Research page: every letter across every project, one view.
+// Blueprint — Utility Research page: every letter across every project, one view.
 function ResearchPage({ projects, onOpenProject }) {
   const [filter, setFilter] = React.useState('all'); // all | waiting | overdue | received | noresp
   const [q, setQ] = React.useState('');

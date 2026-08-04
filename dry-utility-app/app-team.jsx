@@ -1,4 +1,4 @@
-// Dry Utility App — Team workload view.
+// Blueprint — Team workload view.
 // Per-user open-task load across all active projects, with overdue and
 // due-soon breakdowns and per-user task lists.
 
@@ -141,7 +141,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)', fontSize: 12 }}>
                   <div><span style={{ color: 'var(--ink-3)' }}>From:</span> alerts@msaconsultinginc.com</div>
                   <div><span style={{ color: 'var(--ink-3)' }}>To:</span> {digest.recipients.join(', ')}</div>
-                  <div style={{ fontWeight: 600, marginTop: 4 }}>Dry Utility workload digest — week of {fmt(TODAY)}</div>
+                  <div style={{ fontWeight: 600, marginTop: 4 }}>Blueprint workload digest — week of {fmt(TODAY)}</div>
                 </div>
                 <div style={{ padding: 16, fontSize: 13, lineHeight: 1.6 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 12 }}>

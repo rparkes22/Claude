@@ -1,4 +1,4 @@
-// Dry Utility App — Existing Utility Plan module.
+// Blueprint — Existing Utility Plan module.
 // Follows Utility Research: plot each responding agency's facilities onto the
 // project base map. Per-utility plot status + overall deliverable stage.
 // Responsibility: Michael Schreiber (Dry Utility Manager).

@@ -1,4 +1,4 @@
-// Dry Utility App — Utility Coordination page: every hand-off across every project.
+// Blueprint — Utility Coordination page: every hand-off across every project.
 function CoordPage({ projects, onOpenProject, users }) {
   const [view, setView] = React.useState('tracks'); // tracks | handoffs
   const [filter, setFilter] = React.useState('all'); // all | msa | client | utility | stale

@@ -1,4 +1,4 @@
-// Dry Utility App — shell, tracker, WSL page, reports page.
+// Blueprint — shell, tracker, WSL page, reports page.
 // Uses globals from app-data.jsx, app-auth.jsx, app-wizard.jsx.
 
 function Icon({ name, size = 14 }) {
@@ -245,7 +245,7 @@ function WslDetail({ p, wd, canWrite, onWslAction }) {
         <div className="wsl-box">
           <div className="wb-lab">Extension</div>
           <div className="wb-val" style={{ color: wd.extensionUsed ? 'var(--violet)' : 'var(--ink)' }}>{wd.extensionUsed ? 'Used' : 'Available'}</div>
-          <div className="wb-sub">{wd.extensionUsed ? '6mo · no more' : '1× 6-month'}</div>
+          <div className="wb-sub">{wd.extensionUsed ? `${wd.extensionMonths}mo · no more` : `1× ${wd.extensionMonths}-month`}</div>
         </div>
       </div>
       <div className="wsl-bar">
@@ -259,7 +259,7 @@ function WslDetail({ p, wd, canWrite, onWslAction }) {
         {wd.state === 'expired'
           ? <button className="btn btn-warn btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'reapply')}><Icon name="refresh" size={12} />Reapply for new WSL</button>
           : canExtend
-            ? <button className="btn btn-primary btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'extend')}><Icon name="clock" size={12} />Request 6-month extension</button>
+            ? <button className="btn btn-primary btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'extend')}><Icon name="clock" size={12} />Request {wd.extensionMonths}-month extension</button>
             : <button className="btn btn-sm" disabled><Icon name="check" size={12} />No extension available</button>}
         {!canWrite && <span className="readonly-note"><Icon name="lock" size={11} />Read-only role</span>}
       </div>
@@ -582,8 +582,8 @@ function EmailAlertsPanel({ rows, canWrite, showToast }) {
                     <li>Extension: {preview.wd.extensionUsed ? 'already used — none remain' : 'one 6-month extension still available'}</li>
                     <li>Location: {preview.p.location.city}, {preview.p.location.state}</li>
                   </ul>
-                  <p style={{ margin: 0 }}>{preview.threshold === 'expired' ? 'Re-application with IID is required (~18-month process). Open the project to start.' : preview.wd.extensionUsed ? 'No extensions remain — the project must complete before expiry.' : 'Consider filing the 6-month extension if construction will not finish in time.'}</p>
-                  <div style={{ marginTop: 14 }}><span className="btn btn-primary btn-sm" style={{ pointerEvents: 'none' }}>Open in MSA Dry Utility</span></div>
+                  <p style={{ margin: 0 }}>{preview.threshold === 'expired' ? 'Re-application with IID is required (~18-month process). Open the project to start.' : preview.wd.extensionUsed ? 'No extensions remain — the project must complete before expiry.' : `Consider filing the ${preview.wd.extensionMonths}-month extension if construction will not finish in time.`}</p>
+                  <div style={{ marginTop: 14 }}><span className="btn btn-primary btn-sm" style={{ pointerEvents: 'none' }}>Open in MSA Blueprint</span></div>
                 </div>
               </div>
             </div>
@@ -1336,7 +1336,7 @@ function App() {
       <nav className="sidenav">
         <div className="sn-brand">
           <img className="sn-logo" src="assets/msa-logo.svg" alt="MSA Consulting, Inc." />
-          <div className="sn-sub">Dry Utility Division</div>
+          <div className="sn-sub">Blueprint</div>
         </div>
         {PAGES.map(pg => (
           <button key={pg.id} className={`sn-item ${page === pg.id && !openProject ? 'active' : ''}`} onClick={() => { setPage(pg.id); setOpenProjectId(null); }}>

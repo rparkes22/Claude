@@ -1,4 +1,4 @@
-// Dry Utility App — dedicated project page.
+// Blueprint — dedicated project page.
 // One full page per project: services grouped by agency, WSL, due diligence, reporting.
 
 function ProjIcon({ name, size = 14 }) {
@@ -481,10 +481,11 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
     return { ...r, sent: v.sent || r.sent, received: v.received || null, noResponse: !!v.noResponse };
   });
   const resolved = (r) => !!(r.received || r.noResponse);
+  const priorResearch = !!(p.preComplete && p.preComplete.research);
   const done = rows.filter(resolved).length;
   const receivedCount = rows.filter(r => r.received).length;
   const noRespCount = rows.filter(r => r.noResponse && !r.received).length;
-  const researchComplete = rows.length > 0 && done === rows.length;
+  const researchComplete = priorResearch || (rows.length > 0 && done === rows.length);
   // write a full override entry for a row, preserving the other fields
   const patchRow = (r, patch) => {
     if (!canWrite) return;
@@ -498,6 +499,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
   const eubExists = p.tasks.some(t => /existing utility (base|plan)/i.test(t.name));
   React.useEffect(() => {
     if (!researchComplete || !canWrite || !onTaskAdd || eubExists) return;
+    if (p.preComplete && p.preComplete.eub) return; // already issued before we started
     let created = {}; try { created = JSON.parse(localStorage.getItem(EUB_KEY)) || {}; } catch (e) {}
     if (created[p.id]) return; // was created before (may have been deleted on purpose)
     onTaskAdd(p.id, { agency: null, taskId: 'eub-' + Date.now(), name: 'Existing Utility Plan', status: 'none', date: null, assignee: 'u1' });
@@ -541,7 +543,9 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
       {researchComplete && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--ok-tint, rgba(22,163,74,0.07))', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
           <ProjIcon name="check" size={13} />
-          <span><b>Utility Research complete</b> — {receivedCount} of {rows.length} response{rows.length === 1 ? '' : 's'} received{noRespCount ? `, ${noRespCount} closed as no response` : ''}.</span>
+          <span>{priorResearch && rows.length === 0
+            ? <><b>Utility Research already complete</b> — carried over from work done before this project was set up.</>
+            : <><b>Utility Research complete</b> — {receivedCount} of {rows.length} response{rows.length === 1 ? '' : 's'} received{noRespCount ? `, ${noRespCount} closed as no response` : ''}.</>}</span>
           <span style={{ color: 'var(--ink-3)' }}>{eubExists ? 'Next task “Existing Utility Plan” is on the task list — assigned to Michael Schreiber.' : canWrite ? 'Creating “Existing Utility Plan” task for Michael Schreiber…' : 'Next step: Existing Utility Plan (Michael Schreiber).'}</span>
         </div>
       )}
@@ -556,7 +560,9 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
         {missing.length > 0 && canWrite && onEditInfo && <button className="btn btn-ghost btn-sm" style={{ height: 22, fontSize: 10.5 }} onClick={onEditInfo}>Add in project info</button>}
       </div>
       {rows.length === 0 ? (
-        <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>No research letters sent yet. {canWrite ? 'Use “Generate letters” to send the standard request to every agency serving this region — the log of who they went to, when, and responses builds here.' : ''}</div>
+        <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>{priorResearch
+          ? <>Marked complete at project setup — no letters were sent from here. {canWrite ? 'Use “Generate letters” if any further research is needed.' : ''}</>
+          : <>No research letters sent yet. {canWrite ? 'Use “Generate letters” to send the standard request to every agency serving this region — the log of who they went to, when, and responses builds here.' : ''}</>}</div>
       ) : (
       <React.Fragment>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -662,7 +668,7 @@ function getProjectModules(p) {
   const defaults = {
     research: hasResearchTask(p) || (p.research && p.research.length > 0) || (loadAddedResearch()[p.id] || []).length > 0,
     coordination: hasCoordination(p),
-    eub: p.tasks.some(t => /existing utility base/i.test(t.name)),
+    eub: p.tasks.some(t => /existing utility (base|plan)/i.test(t.name)),
   };
   return { ...defaults, ...(loadModuleOv()[p.id] || {}) };
 }
@@ -701,12 +707,13 @@ function ModulesPanel({ p, modules, canWrite, onToggle }) {
 // ---- project tasks panel (user tasks, incl. auto-created follow-ons like Existing Utility Plan) ----
 // ---- project timeline: contract → research (6–8 wks) → existing utility base → coordination → complete ----
 function ProjTimeline({ p, modules }) {
+  const priorDone = p.preComplete || {};
   const rows = getResearchRows(p);
   const firstSent = rows.length ? rows.reduce((m, r) => r.sent < m ? r.sent : m, rows[0].sent) : null;
   const lastRecv = rows.length && rows.every(r => r.received) ? rows.reduce((m, r) => r.received > m ? r.received : m, rows[0].received) : null;
   const contractD = p.contractDate || null;
   const resWeeks = (contractD || firstSent) ? Math.max(1, Math.ceil(daysBetween(contractD || firstSent, lastRecv || TODAY) / 7)) : null;
-  const eub = p.tasks.find(t => /existing utility base/i.test(t.name));
+  const eub = p.tasks.find(t => /existing utility (base|plan)/i.test(t.name));
   const eubSt = (typeof eubLoad === 'function' ? eubLoad() : {})[p.id];
   const eubIssued = eubSt && eubSt.stage === 3;
   const cm = ((typeof cmLoad === 'function' ? cmLoad() : {})[p.id]?.items) || [];
@@ -714,8 +721,8 @@ function ProjTimeline({ p, modules }) {
   const wd = deriveWsl(p.wsl);
   const stages = [
     { lab: 'Contract executed', state: 'done', sub: contractD ? fmtShort(contractD) : firstSent ? `letters out ${fmtShort(firstSent)}` : 'date not set' },
-    modules.research !== false && { lab: 'Utility Research', state: lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !lastRecv && firstSent && resWeeks > 8 },
-    { lab: 'Existing Utility Plan', state: eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
+    modules.research !== false && { lab: 'Utility Research', state: priorDone.research || lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: priorDone.research && !lastRecv ? 'complete before setup' : lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !priorDone.research && !lastRecv && firstSent && resWeeks > 8 },
+    { lab: 'Existing Utility Plan', state: priorDone.eub || eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: priorDone.eub && !eubIssued ? 'complete before setup' : eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
     modules.coordination && { lab: 'Utility Coordination', state: cm.length ? (cmOpen ? 'active' : 'done') : 'todo', sub: cm.length ? `${cmOpen} open · ${cm.length - cmOpen} closed` : 'not started' },
     wd && { lab: 'Will Serve', state: wd.state === 'expired' ? 'late' : wd.state === 'ok' ? 'done' : 'active', sub: wd.state === 'expired' ? 'expired' : `${wd.daysLeft}d left`, late: wd.state === 'expired' || wd.state === 'critical' },
     { lab: 'Complete', state: p.phase === 'Complete' ? 'done' : 'todo', sub: p.phase === 'Complete' ? (p.completedOn ? fmtShort(p.completedOn) : 'archived') : p.phase },
@@ -783,12 +790,12 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
       ) : wsl.state === 'expired' ? (
         <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--warn-tint)', color: 'var(--warn-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <ProjIcon name="clock" size={13} />
-          <span><b>Will Serve Letter expired {fmtShort(wsl.effectiveExpiry.toISOString().slice(0, 10))}</b>{wsl.extensionUsed ? ' — extension already used.' : ' — a 6-month extension is still available.'}</span>
+          <span><b>Will Serve Letter expired {fmtShort(wsl.effectiveExpiry.toISOString().slice(0, 10))}</b>{wsl.extensionUsed ? ' — extension already used.' : ` — a ${wsl.extensionMonths}-month extension is still available.`}</span>
         </div>
       ) : (
         <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', fontSize: 11.5, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <ProjIcon name="check" size={12} />
-          <span>Authorised by the Will Serve Letter — <b style={{ color: 'var(--ink-2)' }}>{wsl.daysLeft}d</b> remaining{wsl.extensionUsed ? ' (6-month extension applied)' : ', 6-month extension available'}.</span>
+          <span>Authorised by the Will Serve Letter — <b style={{ color: 'var(--ink-2)' }}>{wsl.daysLeft}d</b> remaining{wsl.extensionUsed ? ` (${wsl.extensionMonths}-month extension applied)` : `, ${wsl.extensionMonths}-month extension available`}.</span>
         </div>
       )}
       {adding && (
@@ -964,14 +971,16 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
   const [wslEditing, setWslEditing] = React.useState(false);
   const [editIssued, setEditIssued] = React.useState('');
   const [editExt, setEditExt] = React.useState(false);
+  const [editExtMonths, setEditExtMonths] = React.useState(6);
   const startWslEdit = () => {
     setEditIssued(wd ? wd.issued.toISOString().slice(0, 10) : TODAY.toISOString().slice(0, 10));
     setEditExt(wd ? !!wd.extensionUsed : false);
+    setEditExtMonths(wd && wd.extensionMonths != null ? wd.extensionMonths : 6);
     setWslEditing(true);
   };
   const saveWslEdit = () => {
     if (!editIssued) return;
-    onWslEdit(p.id, { issued: editIssued, extensionUsed: editExt });
+    onWslEdit(p.id, { issued: editIssued, extensionUsed: editExt, extensionMonths: Number(editExtMonths) || 6 });
     setWslEditing(false);
   };
 
@@ -1143,13 +1152,17 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                     <label>Issued date</label>
                     <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={editIssued} onChange={e => setEditIssued(e.target.value)} />
                   </div>
+                  <div className="field" style={{ marginBottom: 10 }}>
+                    <label>Extension length <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>— months, usually 6</span></label>
+                    <input type="number" min="1" max="36" className="input" style={{ height: 32, fontSize: 12.5 }} value={editExtMonths} onChange={e => setEditExtMonths(e.target.value)} />
+                  </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 12, cursor: 'pointer' }}>
                     <input type="checkbox" checked={editExt} onChange={e => setEditExt(e.target.checked)} style={{ accentColor: 'var(--primary)' }} />
-                    6-month extension already used
+                    {(Number(editExtMonths) || 6)}-month extension already used
                   </label>
                   {editIssued && (
                     <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 12 }}>
-                      Effective expiry: <b className="mono" style={{ color: 'var(--ink)' }}>{fmt(addMonths(addYears(new Date(editIssued + 'T00:00:00'), 1), editExt ? 6 : 0))}</b>
+                      Effective expiry: <b className="mono" style={{ color: 'var(--ink)' }}>{fmt(addMonths(addYears(new Date(editIssued + 'T00:00:00'), 1), editExt ? (Number(editExtMonths) || 6) : 0))}</b>
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1165,7 +1178,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                     <span className="badge b-ok"><span className="badge-dot"></span>Sent {fmtShort(wd.issued)}</span>
                     {wd.state === 'expired' && <span className="badge b-warn"><span className="badge-dot"></span>Expired</span>}
-                    {wd.extensionUsed && <span className="badge b-violet"><span className="badge-dot"></span>Extension used</span>}
+                    {wd.extensionUsed && <span className="badge b-violet"><span className="badge-dot"></span>Extension used ({wd.extensionMonths} mo)</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                     <span className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: fill }}>{wd.state === 'expired' ? Math.abs(wd.daysLeft) : wd.daysLeft}</span>
@@ -1181,7 +1194,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   <div style={{ marginTop: 12 }}>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Issued</span><span className="mono">{fmt(wd.issued)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Original expiry</span><span className="mono">{fmt(wd.originalExpiry)}</span></div>
-                    <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Extension</span><span>{wd.extensionUsed ? 'Used (6 mo)' : 'Available (1×)'}</span></div>
+                    <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Extension</span><span>{wd.extensionUsed ? `Used (${wd.extensionMonths} mo)` : `Available (1× ${wd.extensionMonths} mo)`}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Effective expiry</span><span className="mono" style={{ color: fill }}>{fmt(wd.effectiveExpiry)}</span></div>
                   </div>
                   {wd.state === 'critical' && wd.extensionUsed && (
@@ -1193,7 +1206,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   {(wd.state === 'critical' || wd.state === 'warning') && !wd.extensionUsed && (
                     <div className="callout warn" style={{ marginTop: 12 }}>
                       <ProjIcon name="clock" size={16} />
-                      <div><b>Extension available.</b> One 6-month extension can move expiry to {fmt(addMonths(wd.originalExpiry, 6))}.</div>
+                      <div><b>Extension available.</b> One {wd.extensionMonths}-month extension can move expiry to {fmt(addMonths(wd.originalExpiry, wd.extensionMonths))}.</div>
                     </div>
                   )}
                   <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

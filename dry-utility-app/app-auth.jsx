@@ -1,4 +1,4 @@
-// Dry Utility App — login screen + Users & Permissions page.
+// Blueprint — login screen + Users & Permissions page.
 // Uses globals from app-data.jsx. Exports to window.
 
 function AuthIcon({ name, size = 14 }) {
@@ -48,7 +48,7 @@ function LoginScreen({ users, onLogin }) {
         <div className="login-brand">
           <img src="assets/msa-logo.svg" alt="MSA Consulting, Inc." style={{ width: 186, height: 'auto', display: 'block' }} />
           <div>
-            <div className="login-tag" style={{ paddingLeft: 2 }}>Dry Utility Division</div>
+            <div className="login-tag" style={{ paddingLeft: 2 }}>Blueprint · Dry Utility Division</div>
           </div>
         </div>
         <h2 className="login-h">Sign in to continue</h2>

@@ -1,4 +1,4 @@
-// Utility Coordination section for project pages (Dry Utility App).
+// Utility Coordination section for project pages (Blueprint).
 // Shown only on projects that carry a coordination-type task.
 // Workbook tabs (one per utility track) → hand-off steppers per document,
 // with a view toggle to a ball-in-court board. Data: Job 2417 workbook

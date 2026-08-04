@@ -1,4 +1,4 @@
-// Dry Utility App — shared data, auth store, agency/task catalogs.
+// Blueprint — shared data, auth store, agency/task catalogs.
 // Exposed on window for the other Babel scripts.
 
 const TODAY = new Date('2026-07-13T00:00:00');
@@ -74,6 +74,9 @@ const CITY_AGENCIES = {
   'Niland':      ['iid', 'socalgas', 'county', 'frontier'],
   'Heber':       ['iid', 'socalgas', 'county', 'att'],
   'Coachella':   ['iid', 'sce', 'socalgas', 'scgt', 'citych', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
+  'Thermal':     ['iid', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
+  'Mecca':       ['iid', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
+  'County of Riverside': ['iid', 'sce', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
   'Indio':       ['iid', 'sce', 'socalgas', 'scgt', 'cityin', 'countyriv', 'frontier', 'iwa', 'vsd', 'cvwd', 'myoma', 'spectrum', 'sprint'],
   'La Quinta':   ['iid', 'sce', 'socalgas', 'scgt', 'citylq', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
   'Palm Desert': ['sce', 'socalgas', 'scgt', 'citypd', 'countyriv', 'cvwd', 'myoma', 'frontier', 'spectrum'],
@@ -560,7 +563,9 @@ function deriveWsl(wsl) {
   if (!wsl) return null;
   const issued = parseDate(wsl.issued);
   const originalExpiry = addYears(issued, 1);
-  const effectiveExpiry = wsl.extensionUsed ? addMonths(originalExpiry, 6) : originalExpiry;
+  // the extension is usually 6 months but can be negotiated shorter or longer
+  const extensionMonths = wsl.extensionMonths == null ? 6 : Number(wsl.extensionMonths);
+  const effectiveExpiry = wsl.extensionUsed ? addMonths(originalExpiry, extensionMonths) : originalExpiry;
   const daysLeft = daysBetween(TODAY, effectiveExpiry);
   let state;
   if (daysLeft < 0) state = 'expired';
@@ -573,7 +578,7 @@ function deriveWsl(wsl) {
   // An extension is worth chasing when time is short (or already gone) and the
   // single 6-month extension has not been used yet.
   const needsExtension = !wsl.extensionUsed && (state === 'warning' || state === 'critical' || state === 'expired');
-  return { ...wsl, issued, originalExpiry, effectiveExpiry, daysLeft, state, status, sent: true, needsExtension };
+  return { ...wsl, issued, originalExpiry, effectiveExpiry, daysLeft, state, status, sent: true, needsExtension, extensionMonths };
 }
 
 const PHASE_META = {

@@ -1,4 +1,4 @@
-// Dry Utility App — Add Project wizard.
+// Blueprint — Add Project wizard.
 // Step 1: Project number, name, client, location (street/city/state/zip)
 // Step 2: City determines the agency list → select agencies
 // Step 3: Select service modules (Utility Research / Coordination) → review & create
@@ -31,13 +31,15 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
   const [form, setForm] = React.useState(BLANK);
   const [agencies, setAgencies] = React.useState([]);      // agency ids
   const [modules, setModules] = React.useState({ research: true, coordination: false });
+  // work a client already had done before the project landed with us
+  const [preComplete, setPreComplete] = React.useState({ research: false, eub: false });
   const [contract, setContract] = React.useState(null);    // { name, size, type, url|dataUrl }
   const [uploading, setUploading] = React.useState(false);
   const contractRef = React.useRef(null);
   const [err, setErr] = React.useState(null);
 
   React.useEffect(() => {
-    if (open) { setStep(1); setForm(BLANK); setAgencies([]); setModules({ research: true, coordination: false }); setContract(null); setUploading(false); setErr(null); }
+    if (open) { setStep(1); setForm(BLANK); setAgencies([]); setModules({ research: true, coordination: false }); setPreComplete({ research: false, eub: false }); setContract(null); setUploading(false); setErr(null); }
   }, [open]);
 
   // Client contract upload — goes to Supabase Storage when online, data URL otherwise.
@@ -90,7 +92,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
     return null;
   };
   const validate2 = () => agencies.length === 0 ? 'Select at least one agency.' : null;
-  const validate3 = () => (modules.research || modules.coordination) ? null : 'Select at least one module.';
+  const validate3 = () => (modules.research || modules.coordination || preComplete.research || preComplete.eub) ? null : 'Select at least one module.';
 
   const next = () => {
     const v = step === 1 ? validate1() : step === 2 ? validate2() : validate3();
@@ -98,11 +100,25 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
     if (step < 3) { setStep(step + 1); return; }
     // create — streamlined: no per-agency micro-tasks; modules drive the project page
     const pid = 'up' + Date.now();
+    const today = TODAY.toISOString().slice(0, 10);
     try {
       const ov = JSON.parse(localStorage.getItem('msa_app_modules_v1')) || {};
-      ov[pid] = { research: !!modules.research, coordination: !!modules.coordination };
+      ov[pid] = {
+        research: !!modules.research || !!preComplete.research,
+        coordination: !!modules.coordination,
+        // showing the plan module makes an already-issued deliverable visible
+        eub: !!preComplete.eub,
+      };
       localStorage.setItem('msa_app_modules_v1', JSON.stringify(ov));
     } catch (e) {}
+    // an Existing Utility Plan carried over from earlier work starts at "Issued"
+    if (preComplete.eub) {
+      try {
+        const eubAll = JSON.parse(localStorage.getItem('msa_app_eubmod_v1')) || {};
+        eubAll[pid] = { stage: 3, plots: {}, issued: form.contractDate || today };
+        localStorage.setItem('msa_app_eubmod_v1', JSON.stringify(eubAll));
+      } catch (e) {}
+    }
     // the signed client contract seeds the project's Contracts panel
     if (contract) {
       try {
@@ -131,10 +147,13 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
       contractDate: form.contractDate || null,
       utility, pm: '—', phase: 'Lead',
       agencies: agencies.slice(),
-      tasks: [],
       wsl: null,
       dd: [],
       reporting: { cadence: 'Bi-weekly', lastSent: null, changes: 0 },
+      preComplete: { research: !!preComplete.research, eub: !!preComplete.eub },
+      tasks: preComplete.eub
+        ? [{ agency: null, taskId: 'eub-' + Date.now(), name: 'Existing Utility Plan', status: 'ok', date: form.contractDate || today, user: true }]
+        : [],
       userAdded: true,
     });
   };
@@ -312,6 +331,23 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                   </div>
                 );
               })}
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginTop: 4 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--ink-3)', fontWeight: 700, marginBottom: 3 }}>Already complete</div>
+                <div className="hint" style={{ marginTop: 0, marginBottom: 8 }}>Tick anything the client had done before this project came to us — it is recorded as finished instead of starting from scratch.</div>
+                {[
+                  { id: 'research', label: 'Utility Research', note: 'Agency responses already in hand — no letters to send.' },
+                  { id: 'eub', label: 'Existing Utility Plan', note: 'Base plan already issued — logged as the completed deliverable.' },
+                ].map(m => (
+                  <label key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', cursor: 'pointer', fontSize: 12.5 }}>
+                    <input type="checkbox" checked={preComplete[m.id]} style={{ accentColor: 'var(--primary)', marginTop: 2 }}
+                      onChange={e => { setErr(null); setPreComplete(prev => ({ ...prev, [m.id]: e.target.checked })); }} />
+                    <span>
+                      <span style={{ fontWeight: 600 }}>{m.label}</span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--ink-4)' }}>{m.note}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
               <div className="summary-box" style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', fontWeight: 700, marginBottom: 6 }}>Review</div>
                 <div className="kv"><span className="k">Project</span><span className="v mono">{form.code.toUpperCase()}</span></div>
@@ -323,6 +359,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                 {form.contractDate && <div className="kv"><span className="k">Contract</span><span className="v mono">{form.contractDate}</span></div>}
                 <div className="kv"><span className="k">Agencies</span><span className="v">{agencies.map(a => AGENCIES[a].short).join(' · ')}</span></div>
                 <div className="kv"><span className="k">Modules</span><span className="v">{[modules.research && 'Utility Research', modules.coordination && 'Utility Coordination'].filter(Boolean).join(' · ') || '—'}</span></div>
+                {(preComplete.research || preComplete.eub) && <div className="kv"><span className="k">Already complete</span><span className="v">{[preComplete.research && 'Utility Research', preComplete.eub && 'Existing Utility Plan'].filter(Boolean).join(' · ')}</span></div>}
               </div>
             </div>
           )}

@@ -1,4 +1,4 @@
-// Dry Utility App — Task Catalog (admin only).
+// Blueprint — Task Catalog (admin only).
 // Pre-defined tasks per agency (e.g. Will Serve Letter, SCE Rule 15 / Rule 16)
 // that editors can then add to any project from the agency panels.
 // Built-in templates are editable via overrides (name/duration, hide/restore);

@@ -1,6 +1,6 @@
-# MSA — Dry Utility App
+# MSA Blueprint
 
-Prototype web app for MSA Consulting's Dry Utility Division: project tracker, Will-Serve-Letter
+Blueprint — the web app for MSA Consulting's Dry Utility Division: project tracker, Will-Serve-Letter
 monitoring, utility research letters, utility coordination (Job 2417), team workload, client
 reports, and admin (users, agencies, task catalog).
 
@@ -31,8 +31,12 @@ Sign in with one of the demo users on the login screen.
 3. **Existing Utility Plan** — created automatically once every letter is resolved;
    plots each responding agency's facilities and tracks the deliverable through QC.
 4. **Utility Coordination** — driven by the Will Serve Letter, valid **1 year** from
-   issue with one **6-month extension**. Project tasks live here and can be given a
-   deadline when they are created.
+   issue with one extension, **6 months by default but editable per project** on the
+   WSL record. Project tasks live here and can be given a deadline when they are created.
+
+Work a client had done before the project reached us can be marked complete during
+project creation — Utility Research and the Existing Utility Plan are then recorded as
+finished rather than started from scratch.
 
 ### IID: Capacity Study vs. Will Serve Letter
 

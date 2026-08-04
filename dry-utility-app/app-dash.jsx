@@ -1,4 +1,4 @@
-// Dry Utility App — Dashboard summary page (home).
+// Blueprint — Dashboard summary page (home).
 
 // month calendar of deadlines: WSL expiries + report due dates
 function DeadlineCalendar({ projects, onOpenProject }) {
