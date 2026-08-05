@@ -62,6 +62,10 @@ function persistSession(id) { try { id ? localStorage.setItem(LS_SESSION, id) : 
 function loadUserProjects() { try { return JSON.parse(localStorage.getItem(LS_PROJECTS)) || []; } catch (e) { return []; } }
 function persistUserProjects(p) { try { localStorage.setItem(LS_PROJECTS, JSON.stringify(p)); } catch (e) {} }
 
+// Projects are tracked by number, so the number travels with the name everywhere a
+// project is referred to — lists, notifications, calendar entries, toasts.
+const projLabel = (p) => `${p.code} · ${p.name}`;
+
 // ===== AGENCIES BY CITY =====
 // Once a city is chosen, these are the agencies offered for selection.
 const CITY_AGENCIES = {
@@ -608,7 +612,7 @@ const DD_META = {
 Object.assign(window, {
   TODAY, parseDate, addYears, addMonths, daysBetween, fmt, fmtShort,
   SEED_USERS, ROLE_META, PERMS, can,
-  backdropClose,
+  backdropClose, projLabel,
   loadUsers, persistUsers, loadSession, persistSession, loadUserProjects, persistUserProjects,
   CITY_AGENCIES, CITIES, AGENCIES, AGENCY_KINDS, AGENCY_TASKS, KIND_TASKS, tasksForAgency, tasksForKind,
   loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,

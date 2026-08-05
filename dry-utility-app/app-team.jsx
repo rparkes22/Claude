@@ -212,7 +212,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderTop: i === 0 ? 'none' : '1px solid var(--border)', fontSize: 12.5, flexWrap: 'wrap' }}>
               <span className="util-tag util-iid mono">{AGENCIES[s.t.agency]?.short || s.t.agency}</span>
               <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{s.t.name}</span>
-              <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}>{s.p.name}</span>
+              <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}><span className="proj-no">{s.p.code}</span> {s.p.name}</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto', color: 'var(--ink-2)' }}>
                 <b>{s.from.name.split(' ')[0]}</b> → <b>{s.to.name.split(' ')[0]}</b>
               </span>
@@ -281,7 +281,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                           <div key={i} className="row-main" onClick={(e) => { e.stopPropagation(); onOpenProject(p.id); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderTop: i === 0 ? 'none' : '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5 }}>
                             <span className="util-tag util-iid mono">{AGENCIES[t.agency]?.short || t.agency}</span>
                             <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.name}</span>
-                            <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}>{p.name}</span>
+                            <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}><span className="proj-no">{p.code}</span> {p.name}</span>
                             {implicit && <span className="badge b-gray" style={{ fontSize: 9.5 }} title="Not explicitly assigned — falls to this user as project PM">via PM</span>}
                             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                               {t.due && <span className="mono" style={{ fontSize: 11.5, color: overdue ? 'var(--warn)' : 'var(--ink-3)', fontWeight: overdue ? 600 : 400 }}>due {fmtShort(t.due)}{overdue ? ` · ${daysBetween(t.due, TODAY)}d late` : ''}</span>}

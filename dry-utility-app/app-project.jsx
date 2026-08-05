@@ -882,7 +882,11 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
         <button className="btn btn-icon" onClick={onBack} title="Back to dashboard"><ProjIcon name="back" /></button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}>{p.name}</h2>
+            <h2 style={{ margin: 0, fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }}>
+              <span className="mono" style={{ color: 'var(--ink-3)', fontSize: 18, fontWeight: 500 }}>{p.code}</span>
+              <span style={{ color: 'var(--ink-4)', margin: '0 8px', fontWeight: 300 }}>·</span>
+              {p.name}
+            </h2>
             {canWrite ? (
               <select className="select" style={{ width: 'auto', height: 28, fontSize: 12, fontWeight: 600, paddingLeft: 9, paddingRight: 26 }} value={p.phase} onChange={e => onPhaseUpdate(p.id, e.target.value)} title="Project status">
                 {PHASES.map(ph => <option key={ph} value={ph}>{ph}</option>)}
@@ -894,7 +898,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
             {p.userAdded && <span className="badge b-teal">new</span>}
           </div>
           <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 12.5, color: 'var(--ink-3)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span className="mono">{p.code}</span>
+            {/* the number now leads the heading above, so it isn't repeated here */}
             <span>
               {p.client}
               {p.clientContact && p.clientContact.name ? <span style={{ color: 'var(--ink-4)' }}> · {p.clientContact.name}</span> : null}

@@ -543,7 +543,7 @@ function EmailAlertsPanel({ rows, canWrite, showToast }) {
               <span className={`badge ${s.threshold === 'expired' ? 'b-warn' : s.active ? 'b-amber' : 'b-gray'}`}>
                 <span className="badge-dot"></span>{s.threshold === 'expired' ? 'expired' : `${s.threshold}d alert`}
               </span>
-              <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{s.p.name}</span>
+              <span style={{ fontWeight: 600, color: 'var(--ink)' }}><span className="proj-no">{s.p.code}</span> {s.p.name}</span>
               <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}>{s.when}</span>
               <span style={{ marginLeft: 'auto' }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setPreview(s)}>Preview email</button>
@@ -741,7 +741,7 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
     <div>
       <div className="toolbar">
         <select className="select" style={{ width: 320 }} value={code} onChange={e => setCode(e.target.value)}>
-          {projects.map(p => <option key={p.code} value={p.code}>{p.name} · {p.client}</option>)}
+          {projects.map(p => <option key={p.code} value={p.code}>{p.code} · {p.name} · {p.client}</option>)}
         </select>
         <span className="badge b-blue"><span className="badge-dot"></span>{cadence}</span>
         <div className="toolbar-spacer"></div>
@@ -912,9 +912,9 @@ function buildNotifications(projects) {
   projects.forEach(p => {
     const wd = deriveWsl(p.wsl);
     if (wd) {
-      if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${p.name}`, sub: `Sent ${fmtShort(wd.issued)} · lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
-      else if (wd.state === 'critical') out.push({ id: `wsl-crit-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: wd.extensionUsed ? 'No extensions remain' : 'Extension still available', ts: TODAY });
-      else if (wd.state === 'warning') out.push({ id: `wsl-warn-${p.id}`, pid: p.id, sev: 'warn', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${p.name}`, sub: `Expiry ${fmtShort(wd.effectiveExpiry)}`, ts: TODAY });
+      if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${projLabel(p)}`, sub: `Sent ${fmtShort(wd.issued)} · lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
+      else if (wd.state === 'critical') out.push({ id: `wsl-crit-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${projLabel(p)}`, sub: wd.extensionUsed ? 'No extensions remain' : 'Extension still available', ts: TODAY });
+      else if (wd.state === 'warning') out.push({ id: `wsl-warn-${p.id}`, pid: p.id, sev: 'warn', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${projLabel(p)}`, sub: `Expiry ${fmtShort(wd.effectiveExpiry)}`, ts: TODAY });
       // (capacity-study alerts are handled below — they apply with or without a WSL)
       // Filing the one 6-month extension is time-critical and easy to miss, so it
       // gets its own escalating alert on top of the expiry countdown above.
@@ -924,8 +924,8 @@ function buildNotifications(projects) {
           sev: wd.state === 'expired' || wd.state === 'critical' ? 'crit' : 'warn',
           icon: 'clock',
           title: wd.state === 'expired'
-            ? `Extension window closing — ${p.name}`
-            : `File the 6-month WSL extension — ${p.name}`,
+            ? `Extension window closing — ${projLabel(p)}`
+            : `File the 6-month WSL extension — ${projLabel(p)}`,
           sub: wd.state === 'expired'
             ? `WSL lapsed ${fmtShort(wd.effectiveExpiry)} — the unused 6-month extension is the fastest route back`
             : `${wd.daysLeft}d left · extends expiry to ${fmtShort(addMonths(wd.effectiveExpiry, 6))}`,
@@ -942,13 +942,13 @@ function buildNotifications(projects) {
       out.push({
         id: `cap-late-${p.id}`, pid: p.id,
         sev: cs.daysOverdue >= 14 ? 'crit' : 'warn', icon: 'clock',
-        title: `Capacity study overdue — ${p.name}`,
+        title: `Capacity study overdue — ${projLabel(p)}`,
         sub: `Submitted ${fmtShort(cs.submitted)} · ${cs.turnaroundWeeks}-week turnaround passed ${cs.daysOverdue}d ago`,
         ts: cs.expected,
       });
     }
     const due = p.reporting.lastSent && daysBetween(p.reporting.lastSent, TODAY) >= (p.reporting.cadence === 'Weekly' ? 7 : 14);
-    if (due) out.push({ id: `rpt-${p.id}`, pid: p.id, sev: 'info', icon: 'report', title: `${p.reporting.cadence} report due — ${p.name}`, sub: `Last sent ${fmtShort(p.reporting.lastSent)}`, ts: TODAY });
+    if (due) out.push({ id: `rpt-${p.id}`, pid: p.id, sev: 'info', icon: 'report', title: `${p.reporting.cadence} report due — ${projLabel(p)}`, sub: `Last sent ${fmtShort(p.reporting.lastSent)}`, ts: TODAY });
     // stale utility research letters: sent, nothing received, no recent follow-up (30d threshold)
     {
       const recOv = (() => { try { return JSON.parse(localStorage.getItem('msa_app_research_v1')) || {}; } catch (e) { return {}; } })();
@@ -962,7 +962,7 @@ function buildNotifications(projects) {
         .sort((a, b) => daysBetween(b.sent, TODAY) - daysBetween(a.sent, TODAY));
       stale.slice(0, 3).forEach(r => {
         const silent = daysBetween(fu[r.id] || r.sent, TODAY);
-        out.push({ id: `res-${p.id}-${r.id}-${fu[r.id] || r.sent}`, pid: p.id, sev: silent >= 45 ? 'warn' : 'info', icon: 'file', title: `Research follow-up — ${r.label}`, sub: `${p.name} · sent ${fmtShort(r.sent)} · ${silent}d silent${fu[r.id] ? ' · followed up ' + fmtShort(fu[r.id]) : ''}`, ts: r.sent });
+        out.push({ id: `res-${p.id}-${r.id}-${fu[r.id] || r.sent}`, pid: p.id, sev: silent >= 45 ? 'warn' : 'info', icon: 'file', title: `Research follow-up — ${r.label}`, sub: `${projLabel(p)} · sent ${fmtShort(r.sent)} · ${silent}d silent${fu[r.id] ? ' · followed up ' + fmtShort(fu[r.id]) : ''}`, ts: r.sent });
       });
       if (stale.length > 3) out.push({ id: `res-more-${p.id}`, pid: p.id, sev: 'info', icon: 'file', title: `${stale.length - 3} more research letters need follow-up`, sub: p.name, ts: TODAY });
     }
@@ -980,7 +980,7 @@ function buildNotifications(projects) {
           sev: ns.due ? 'warn' : it.ball.holder === 'msa' ? 'warn' : 'info',
           icon: 'clip',
           title: `${ns.due ? 'Nudge due — ' : ''}${it.group.name}${it.woName ? ' · ' + it.woName : ''}`,
-          sub: `${p.name} · ${it.track.tag} · ${holderLabel[it.ball.holder]} ${it.days != null ? it.days + 'd' : ''}${ns.lastNudge ? ' · last nudged ' + Math.floor((Date.now() - new Date(ns.lastNudge.ts).getTime()) / 86400000) + 'd ago' : ''}`,
+          sub: `${projLabel(p)} · ${it.track.tag} · ${holderLabel[it.ball.holder]} ${it.days != null ? it.days + 'd' : ''}${ns.lastNudge ? ' · last nudged ' + Math.floor((Date.now() - new Date(ns.lastNudge.ts).getTime()) / 86400000) + 'd ago' : ''}`,
           ts: TODAY,
         });
       });
@@ -996,8 +996,8 @@ function buildNotifications(projects) {
             const e = (cmd.ms[tid] || {})[i];
             if (!e || !e.due || e.date) return;
             const d = daysBetween(e.due, TODAY);
-            if (d > 0) out.push({ id: `cmms-over-${p.id}-${tid}-${i}`, pid: p.id, sev: d >= 14 ? 'crit' : 'warn', icon: 'clock', title: `Milestone overdue — ${lab}`, sub: `${p.name} · ${trk ? trk.lab : tid} · due ${fmtShort(e.due)} · ${d}d late`, ts: e.due });
-            else if (d >= -7) out.push({ id: `cmms-soon-${p.id}-${tid}-${i}`, pid: p.id, sev: 'info', icon: 'clock', title: `Milestone due ${d === 0 ? 'today' : 'in ' + (-d) + 'd'} — ${lab}`, sub: `${p.name} · ${trk ? trk.lab : tid} · due ${fmtShort(e.due)}`, ts: e.due });
+            if (d > 0) out.push({ id: `cmms-over-${p.id}-${tid}-${i}`, pid: p.id, sev: d >= 14 ? 'crit' : 'warn', icon: 'clock', title: `Milestone overdue — ${lab}`, sub: `${projLabel(p)} · ${trk ? trk.lab : tid} · due ${fmtShort(e.due)} · ${d}d late`, ts: e.due });
+            else if (d >= -7) out.push({ id: `cmms-soon-${p.id}-${tid}-${i}`, pid: p.id, sev: 'info', icon: 'clock', title: `Milestone due ${d === 0 ? 'today' : 'in ' + (-d) + 'd'} — ${lab}`, sub: `${projLabel(p)} · ${trk ? trk.lab : tid} · due ${fmtShort(e.due)}`, ts: e.due });
           });
         });
       }
@@ -1180,7 +1180,7 @@ function App() {
       try { localStorage.setItem(PHASE_KEY, JSON.stringify(next)); } catch (e) {}
       return next;
     });
-    showToast(phase === 'Complete' ? `${p.name} marked complete — moved to archive` : `${p.name} → ${phase}`);
+    showToast(phase === 'Complete' ? `${projLabel(p)} marked complete — moved to archive` : `${projLabel(p)} → ${phase}`);
   };
 
   const canWrite = currentUser ? (currentUser.role === 'admin' || currentUser.role === 'editor') : false;
@@ -1195,10 +1195,10 @@ function App() {
     if (!p) return;
     if (action === 'extend') {
       saveWslOverrides(prev => ({ ...prev, [pid]: { ...p.wsl, extensionUsed: true } }));
-      showToast(`Extension filed for ${p.name}`);
+      showToast(`Extension filed for ${projLabel(p)}`);
     } else {
       saveWslOverrides(prev => ({ ...prev, [pid]: { issued: TODAY.toISOString().slice(0, 10), extensionUsed: false } }));
-      showToast(`New WSL application submitted for ${p.name}`);
+      showToast(`New WSL application submitted for ${projLabel(p)}`);
     }
   };
 
@@ -1208,10 +1208,10 @@ function App() {
     if (!p) return;
     if (wsl === null) {
       saveWslOverrides(prev => ({ ...prev, [pid]: null }));
-      showToast(`WSL record removed for ${p.name}`);
+      showToast(`WSL record removed for ${projLabel(p)}`);
     } else {
       saveWslOverrides(prev => ({ ...prev, [pid]: wsl }));
-      showToast(`WSL dates updated for ${p.name}`);
+      showToast(`WSL dates updated for ${projLabel(p)}`);
     }
   };
 
@@ -1222,10 +1222,10 @@ function App() {
     if (!p) return;
     if (cs === null) {
       saveCapStudies(prev => ({ ...prev, [pid]: null }));
-      showToast(`Capacity study removed for ${p.name}`);
+      showToast(`Capacity study removed for ${projLabel(p)}`);
     } else {
       saveCapStudies(prev => ({ ...prev, [pid]: cs }));
-      showToast(cs.received ? `Capacity study results logged for ${p.name}` : `Capacity study submittal logged for ${p.name}`);
+      showToast(cs.received ? `Capacity study results logged for ${projLabel(p)}` : `Capacity study submittal logged for ${projLabel(p)}`);
     }
   };
 

@@ -23,16 +23,16 @@ function DeadlineCalendar({ projects, onOpenProject }) {
     projects.forEach(p => {
       const wd = deriveWsl(p.wsl);
       if (wd) {
-        push(wd.effectiveExpiry, { kind: 'wsl', sev: wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok', label: `WSL expires — ${p.name}`, pid: p.id });
-        if (!wd.extensionUsed) push(wd.originalExpiry, { kind: 'wsl-orig', sev: 'warn', label: `1-yr mark (ext deadline) — ${p.name}`, pid: p.id });
+        push(wd.effectiveExpiry, { kind: 'wsl', sev: wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok', label: `WSL expires — ${projLabel(p)}`, pid: p.id });
+        if (!wd.extensionUsed) push(wd.originalExpiry, { kind: 'wsl-orig', sev: 'warn', label: `1-yr mark (ext deadline) — ${projLabel(p)}`, pid: p.id });
       }
       if (p.reporting.lastSent) {
         const next = parseDate(p.reporting.lastSent);
         next.setDate(next.getDate() + (p.reporting.cadence === 'Weekly' ? 7 : 14));
-        push(next, { kind: 'report', sev: 'info', label: `${p.reporting.cadence} report due — ${p.name}`, pid: p.id });
+        push(next, { kind: 'report', sev: 'info', label: `${p.reporting.cadence} report due — ${projLabel(p)}`, pid: p.id });
       }
       p.tasks.forEach(t => {
-        if (t.user && t.due && t.status !== 'ok') push(t.due, { kind: 'task', sev: daysBetween(t.due, TODAY) > 0 ? 'crit' : 'warn', label: `${t.name} due — ${p.name}`, pid: p.id });
+        if (t.user && t.due && t.status !== 'ok') push(t.due, { kind: 'task', sev: daysBetween(t.due, TODAY) > 0 ? 'crit' : 'warn', label: `${t.name} due — ${projLabel(p)}`, pid: p.id });
       });
       // coordination track milestone deadlines (unlogged, with a due date)
       if (typeof cmLoad === 'function' && typeof CM_MILESTONES !== 'undefined') {
@@ -42,7 +42,7 @@ function DeadlineCalendar({ projects, onOpenProject }) {
           const trk = (typeof CM_TRACKS !== 'undefined' ? CM_TRACKS : []).find(t => t.id === tid);
           defs.forEach((lab, i) => {
             const e = (cmd.ms[tid] || {})[i];
-            if (e && e.due && !e.date) push(e.due, { kind: 'milestone', sev: daysBetween(e.due, TODAY) > 0 ? 'crit' : 'warn', label: `${lab} — ${trk ? trk.lab : tid} · ${p.name}`, pid: p.id });
+            if (e && e.due && !e.date) push(e.due, { kind: 'milestone', sev: daysBetween(e.due, TODAY) > 0 ? 'crit' : 'warn', label: `${lab} — ${trk ? trk.lab : tid} · ${projLabel(p)}`, pid: p.id });
           });
         });
       }
@@ -252,7 +252,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
                     <span className="util-tag util-iid mono">{AGENCIES[t.agency]?.short || t.agency}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{p.name}{t.due ? ` · due ${fmtShort(t.due)}` : ''}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}><span className="proj-no">{p.code}</span> {p.name}{t.due ? ` · due ${fmtShort(t.due)}` : ''}</div>
                     </div>
                     {overdue
                       ? <span className="days-chip crit">{daysBetween(t.due, TODAY)}d late</span>
@@ -275,7 +275,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
           {wslAttention.slice(0, 5).map(({ p, wd }) => (
             <div key={p.id} onClick={() => onOpenProject(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5 }} className="row-main">
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.name}</div>
+                <div style={{ fontWeight: 600, color: 'var(--ink)' }}><span className="proj-no">{p.code}</span> {p.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{p.client} · {p.location.city}</div>
               </div>
               {wd.extensionUsed && <span className="badge b-violet" style={{ fontSize: 10 }}>ext used</span>}
@@ -296,7 +296,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
           {research.filter(x => x.waiting.length).slice(0, 5).map(({ p, total, received, waiting, oldest }, i) => (
             <div key={i} onClick={() => onOpenProject(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5 }} className="row-main">
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.name}</div>
+                <div style={{ fontWeight: 600, color: 'var(--ink)' }}><span className="proj-no">{p.code}</span> {p.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{waiting.slice(0, 4).map(w => AGENCIES[w.agency]?.short || w.label).join(' · ')}{waiting.length > 4 ? ` +${waiting.length - 4}` : ''}</div>
               </div>
               <span className={`badge ${oldest > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{received}/{total} · {oldest}d</span>
@@ -351,7 +351,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
             {research.slice(0, 5).map(({ p, total, received, waiting, oldest }) => (
               <div key={p.id} onClick={() => onOpenProject(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5 }} className="row-main">
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.name}</div>
+                  <div style={{ fontWeight: 600, color: 'var(--ink)' }}><span className="proj-no">{p.code}</span> {p.name}</div>
                   <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{waiting.length ? `waiting on ${waiting.slice(0, 3).map(r => AGENCIES[r.agency]?.short || r.agency).join(', ')}${waiting.length > 3 ? ` +${waiting.length - 3}` : ''}` : 'all research received'}</div>
                 </div>
                 <div style={{ width: 54, height: 8, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden', flexShrink: 0 }}>
@@ -372,7 +372,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
               <span className="util-tag util-iid mono" style={{ marginTop: 2 }}>{ev.tag}</span>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ color: 'var(--ink)', lineHeight: 1.35 }}>{ev.text}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace', marginTop: 1 }}>{ev.proj.name} · {fmtShort(ev.ts)}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace', marginTop: 1 }}>{ev.proj.code} · {ev.proj.name} · {fmtShort(ev.ts)}</div>
               </div>
             </div>
           ))}
