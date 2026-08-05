@@ -70,30 +70,33 @@ so the study stays in the history after the letter is issued.
 ## Branding & letterhead
 
 Anything that leaves the office on paper — **Utility Research letters** and **client
-reports** — is laid out on the MSA letterhead: the centred logo lockup with the two
-discipline lines at the top, and the rule plus `34200 Bob Hope Drive · 760.320.9811 ·
-msaconsultinginc.com` at the foot. It repeats on **every page**, not just the first.
+reports** — is laid out on MSA's own letterhead artwork, mirroring the printed stationery:
 
-`Letterhead` / `LetterFoot` / `LetterheadDoc` live in `app-letters.jsx` and are shared by
-both documents, so the two can't drift apart. `LetterheadDoc` wraps content in a table and
-puts the letterhead in `<thead>` and the contact line in `<tfoot>` — browsers redraw those
-at the top and bottom of each printed page. (`position: fixed` was tried first and is not
-dependable: negative offsets into the `@page` margin get clipped, and page one is skipped.)
-Letters pass `singlePage`, which fixes the table to one page so the contact line sits at
-the page foot rather than tucked under a short letter.
+- `assets/new-letterhead.svg` — **page 1**: the logo lockup at the top, contact line at the foot.
+- `assets/2nd-page-letterhead.svg` — **every page after**: the contact line only, no lockup.
 
-Two marks, kept deliberately separate:
+Both files are full-page (8.5×11) artwork. `Letterhead` / `LetterFoot` / `LetterheadDoc` in
+`app-letters.jsx` show each through a fixed-aspect *window* — the header band reveals the
+top 1.35in of page 1, the footer band the bottom 0.8in — so the artwork keeps its own scale
+whether it's a 7.2in on-screen preview or a printed page, with no cropping or rescaling.
 
-- `assets/blueprint-logo.svg` — the **app** logo: the MS monogram drafted on a blueprint
-  field. Used in the sidebar, on the login screen, and as the browser-tab icon.
-- `assets/msa-mark.svg` — the **letterhead** mark: the circular MS monogram in the firm's
-  orange. Used on letters and reports.
+Placement follows the two-file split: the header band sits in normal document flow, so it
+appears once, on page 1; the footer band lives in `<tfoot>`, which browsers redraw at the
+foot of every printed page. (`position: fixed` was tried first and is not dependable —
+negative offsets into the `@page` margin get clipped, and page one is skipped.)
 
-Client-facing documents carry the letterhead mark, not the app badge — the blueprint
-styling belongs to the tool, not to MSA's correspondence.
+Page geometry is `@page { margin: 0.62in 0 0 0 }` with `@page :first { margin-top: 0 }`, so
+page 1 sits flush and the lockup lands where the artwork puts it, while later pages drop
+below the fold. Letters are the exception: every letter is its own page 1, so
+`doPrint()` installs a scoped `@page { margin: 0 }` for that job and removes it afterwards.
+Content is inset by `.msa-doc-body`, clear of both bands.
 
-Both SVGs are hand-rebuilt stand-ins for the real artwork. Drop the official files in at
-the same paths and everything picks them up with no code changes.
+The **app** logo is separate: `assets/blueprint-logo.svg`, the MS monogram on a blueprint
+field, used in the sidebar, on the login screen, and as the browser-tab icon. Client-facing
+documents carry the letterhead, not the app badge.
+
+`assets/msa-consulting-logo-color.svg` is the standalone colour logo; it is not referenced
+by the app, since the letterhead artwork already contains the lockup.
 
 ## Data & attachments (Supabase)
 

@@ -42,60 +42,53 @@ function removeRecipient(id) {
 function resetRecipient(id) { const m = loadContactMods(); delete m.edited[id]; m.removed = m.removed.filter(x => x !== id); persistContactMods(m); }
 
 // ===== MSA LETTERHEAD =====
-// The firm's letterhead, reproduced for anything that leaves the office on paper or
-// as a PDF (research letters, client reports). Shared so the two never drift apart.
+// The firm's own letterhead artwork, used for anything that leaves the office on paper
+// or as a PDF (research letters, client reports).
 //
-// Repeating it on every page is done with a table: browsers re-draw <thead> at the top
-// and <tfoot> at the bottom of each printed page. position:fixed was tried first and
-// is not dependable — negative offsets into the @page margin get clipped, and the
-// first page is skipped entirely.
-const MSA_DISCIPLINES = [
-  'Civil Engineering  ·  Land Surveying  ·  Landscape Architecture',
-  'Planning  ·  Environmental Services  ·  Dry Utility Coordination  ·  GIS',
-];
-const MSA_CONTACT = ['34200 Bob Hope Drive, Rancho Mirage, CA 92270', '760.320.9811', 'msaconsultinginc.com'];
+// Two files, matching how the printed stationery works:
+//   new-letterhead.svg      page 1 — the logo lockup at the top, contact line at the foot
+//   2nd-page-letterhead.svg every page after — the contact line only, no lockup
+//
+// Both are full-page (8.5x11) artwork, so each is shown through a fixed-aspect window
+// rather than being cropped or rescaled: the header band reveals the top 1.35in of
+// page 1, the footer band the bottom 0.8in. Because the windows are aspect-ratio
+// based they hold at any sheet width — the on-screen preview and the printed page use
+// the same markup.
+//
+// Placement: the header band sits in the document flow, so it appears once, on page 1.
+// The footer band lives in <tfoot>, which browsers redraw at the foot of every printed
+// page. (position:fixed was tried first and is not dependable — negative offsets into
+// the @page margin get clipped and the first page is skipped entirely.)
+const LH_PAGE1 = 'assets/new-letterhead.svg';
+const LH_PAGE2 = 'assets/2nd-page-letterhead.svg';
 
 function Letterhead() {
   return (
-    <div className="msa-lh" aria-label="MSA Consulting, Inc.">
-      <img className="msa-lh-mark" src="assets/msa-mark.svg" alt="" />
-      <div className="msa-lh-type">
-        <div className="msa-lh-word">
-          <span className="w-msa">MSA</span>{' '}
-          <span className="w-consulting">CONSULTING</span><span className="w-inc">, INC.</span>
-        </div>
-        <div className="msa-lh-rule" />
-        {MSA_DISCIPLINES.map((l, i) => <div className="msa-lh-disc" key={i}>{l}</div>)}
-      </div>
+    <div className="msa-lh-band msa-lh-head">
+      <img src={LH_PAGE1} alt="MSA Consulting, Inc." />
     </div>
   );
 }
 
 function LetterFoot() {
   return (
-    <div className="msa-ft">
-      <div className="msa-ft-rule" />
-      <div className="msa-ft-line">
-        {MSA_CONTACT.map((t, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <span className="msa-ft-sep">|</span>}
-            <span>{t}</span>
-          </React.Fragment>
-        ))}
-      </div>
+    <div className="msa-lh-band msa-lh-foot">
+      <img src={LH_PAGE2} alt="" />
     </div>
   );
 }
 
-// Wraps document content in MSA letterhead. `singlePage` fixes the table to one
-// printed page so the footer sits at the page foot rather than under short content —
-// right for letters; reports flow across pages and repeat the header/footer instead.
+// Wraps document content in MSA letterhead. `singlePage` fixes the table to one printed
+// page so the footer sits at the page foot rather than under short content — right for
+// letters; reports flow across pages and repeat the footer instead.
 function LetterheadDoc({ children, singlePage }) {
   return (
     <table className={'msa-doc' + (singlePage ? ' msa-doc-1p' : '')}>
-      <thead><tr><td><Letterhead /></td></tr></thead>
-      <tfoot><tr><td><LetterFoot /></td></tr></tfoot>
-      <tbody><tr><td className="msa-doc-body">{children}</td></tr></tbody>
+      <tfoot><tr><td className="msa-doc-foot"><LetterFoot /></td></tr></tfoot>
+      <tbody>
+        <tr><td className="msa-doc-head"><Letterhead /></td></tr>
+        <tr><td className="msa-doc-body">{children}</td></tr>
+      </tbody>
     </table>
   );
 }
@@ -202,6 +195,14 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     const fresh = chosen.filter(r => !existing.some(x => x.to === r.email && x.sent === fields.date))
       .map((r, i) => ({ id: 'ra-' + Date.now() + '-' + i, agency: r.agency, label: r.label, sent: fields.date, received: null, to: r.email, file: null, logged: true, owner: 'u2', by: currentUser ? currentUser.initials : '' }));
     if (fresh.length) persistAddedResearch({ ...all, [p.id]: [...(all[p.id] || []), ...fresh] });
+    // Every letter is its own page-1, so this job wants a flush page box on all pages —
+    // unlike a report, where only the literal first page carries the lockup. @page can't
+    // be scoped by selector, so the letter job installs its own page setup and removes
+    // it afterwards.
+    const pageStyle = document.createElement('style');
+    pageStyle.id = 'letter-page-style';
+    pageStyle.textContent = '@media print{@page{margin:0}@page :first{margin:0}}';
+    document.head.appendChild(pageStyle);
     const holder = document.createElement('div');
     holder.id = 'letter-print-root';
     document.body.appendChild(holder);
@@ -211,7 +212,7 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     root.render(<div>{chosen.map(r => <LetterSheet key={r.id} r={r} f={fields} />)}</div>);
     setTimeout(() => {
       window.print();
-      setTimeout(() => { root.unmount(); holder.remove(); }, 400);
+      setTimeout(() => { root.unmount(); holder.remove(); pageStyle.remove(); }, 400);
       showToast && showToast(`${chosen.length} letter${chosen.length > 1 ? 's' : ''} sent to print — save as PDF from the dialog`);
     }, 120);
   };
