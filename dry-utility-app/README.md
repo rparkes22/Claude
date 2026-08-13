@@ -30,13 +30,42 @@ Sign in with one of the demo users on the login screen.
    marked N/A on the Existing Utility Plan.
 3. **Existing Utility Plan** — created automatically once every letter is resolved;
    plots each responding agency's facilities and tracks the deliverable through QC.
-4. **Utility Coordination** — driven by the Will Serve Letter, valid **1 year** from
-   issue with one extension, **6 months by default but editable per project** on the
-   WSL record. Project tasks live here and can be given a deadline when they are created.
+4. **Utility Coordination** — driven by the Will Serve Letter. A year from issue with a
+   6-month extension is only the usual case: both the **expiry** and the **extension
+   date** can be entered by hand on the WSL record, because agencies don't always follow
+   the rule and sometimes grant time after the fact. A hand-entered date always wins over
+   the derived one, and the record says which it is. Project tasks live here and can be
+   given a deadline when they are created.
+
+Calendar arithmetic clamps to the end of the target month rather than rolling over, so a
+letter issued 31 Aug runs to 28 Feb — not 3 Mar — and 29 Feb + 1 year is 28 Feb.
 
 Work a client had done before the project reached us can be marked complete during
 project creation — Utility Research and the Existing Utility Plan are then recorded as
 finished rather than started from scratch.
+
+## People, roles & workload
+
+`admin` (full access including users), `manager` (full project access and assigns work,
+plus agency setup, but no user admin), `editor` (read/write projects, letters, reports),
+`viewer` (read-only). Permissions are declared once in `PERMS` and read through `can()`;
+an unrecognised role falls back to read-only rather than silently gaining access.
+
+Every project carries an **MSA project manager**, set at creation (defaulting to whoever
+is creating it) and editable afterwards. The PM drives task ownership on the Team page and
+is named on the client report.
+
+There is **no per-person task cap**. Load is uneven by design — the division manager
+carries a large share — so workload bars are scaled against the busiest person, nobody is
+flagged "over capacity", and an assignment is never blocked. Rebalancing suggestions key
+off the gap between the busiest and lightest person (3 tasks or more), not a limit.
+
+## Client reports
+
+Reports are laid out on the letterhead and paginate without splitting a section, table row
+or card across a page break. **Issue & file** stores the report exactly as it reads that
+day; printing files it too. The record is per project, newest first, and each entry is a
+frozen snapshot — a report that has gone to a client never changes as the project moves on.
 
 ## Agency Setup (admin)
 

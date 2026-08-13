@@ -129,10 +129,9 @@ function UsersPage({ users, setUsers, currentUser, showToast }) {
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{u.name} {u.id === currentUser.id && <span style={{ color: 'var(--ink-4)', fontWeight: 400 }}>(you)</span>}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email} · {u.title}</div>
                 </div>
-                <select className="select" style={{ width: 96, height: 30, fontSize: 12 }} value={u.role} onChange={e => setUserRole(u.id, e.target.value)} disabled={u.id === currentUser.id}>
-                  <option value="admin">Admin</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
+                {/* built from ROLE_META so a new role can't silently fall back to Admin */}
+                <select className="select" style={{ width: 104, height: 30, fontSize: 12 }} value={u.role} onChange={e => setUserRole(u.id, e.target.value)} disabled={u.id === currentUser.id}>
+                  {Object.keys(ROLE_META).map(r => <option key={r} value={r}>{ROLE_META[r].label}</option>)}
                 </select>
                 <button className="btn btn-sm btn-ghost" title="Remove user" onClick={() => removeUser(u.id)} disabled={u.id === currentUser.id} style={{ color: 'var(--warn)' }}>
                   <AuthIcon name="trash" size={13} />

@@ -179,7 +179,7 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
       contactName: 'Michael Schreiber',
       contactEmail: 'mschreiber@msaconsultinginc.com',
       signerName: currentUser ? currentUser.name : '',
-      signerTitle: currentUser && currentUser.role === 'admin' ? 'Dry Utility Manager' : 'Project Administrator',
+      signerTitle: (currentUser && currentUser.title) || 'Project Administrator',
     });
   }, [open, p.id]);
   if (!open || !fields) return null;

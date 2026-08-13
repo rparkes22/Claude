@@ -22,11 +22,11 @@ const WIZ_STEPS = [
   { n: 3, label: 'Modules & review' },
 ];
 
-function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
+function AddProjectWizard({ open, onClose, onCreate, existingCodes, users, currentUser }) {
   const [step, setStep] = React.useState(1);
   const BLANK = {
     code: '', name: '', client: '', clientContact: '', clientEmail: '', clientPhone: '',
-    street: '', city: '', state: 'CA', zip: '', contractDate: '',
+    street: '', city: '', state: 'CA', zip: '', contractDate: '', pm: '',
   };
   const [form, setForm] = React.useState(BLANK);
   const [agencies, setAgencies] = React.useState([]);      // agency ids
@@ -39,7 +39,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
   const [err, setErr] = React.useState(null);
 
   React.useEffect(() => {
-    if (open) { setStep(1); setForm(BLANK); setAgencies([]); setModules({ research: true, coordination: false }); setPreComplete({ research: false, eub: false }); setContract(null); setUploading(false); setErr(null); }
+    if (open) { setStep(1); setForm({ ...BLANK, pm: (currentUser && currentUser.initials) || '' }); setAgencies([]); setModules({ research: true, coordination: false }); setPreComplete({ research: false, eub: false }); setContract(null); setUploading(false); setErr(null); }
   }, [open]);
 
   // Client contract upload — goes to Supabase Storage when online, data URL otherwise.
@@ -145,7 +145,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
       },
       location: { street: form.street.trim(), city: form.city, state: form.state, zip: form.zip.trim() },
       contractDate: form.contractDate || null,
-      utility, pm: '—', phase: 'Lead',
+      utility, pm: form.pm || '', phase: 'Lead',
       agencies: agencies.slice(),
       wsl: null,
       dd: [],
@@ -240,6 +240,13 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                 <div className="field">
                   <label>Contract executed</label>
                   <input type="date" className="input" value={form.contractDate} onChange={e => set('contractDate', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>MSA project manager</label>
+                  <select className="select" value={form.pm} onChange={e => set('pm', e.target.value)}>
+                    <option value="">Unassigned</option>
+                    {(users || []).map(u => <option key={u.id} value={u.initials}>{u.name}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="field" style={{ marginTop: 4 }}>
@@ -353,6 +360,7 @@ function AddProjectWizard({ open, onClose, onCreate, existingCodes }) {
                 <div className="kv"><span className="k">Project</span><span className="v mono">{form.code.toUpperCase()}</span></div>
                 <div className="kv"><span className="k">Name</span><span className="v">{form.name}</span></div>
                 <div className="kv"><span className="k">Client</span><span className="v">{form.client}{form.clientContact ? ` · ${form.clientContact}` : ''}</span></div>
+                <div className="kv"><span className="k">Project manager</span><span className="v">{(users || []).find(u => u.initials === form.pm)?.name || 'Unassigned'}</span></div>
                 {(form.clientEmail || form.clientPhone) && <div className="kv"><span className="k">Contact</span><span className="v">{[form.clientEmail, form.clientPhone].filter(Boolean).join(' · ')}</span></div>}
                 {contract && <div className="kv"><span className="k">Contract</span><span className="v">{contract.name}</span></div>}
                 <div className="kv"><span className="k">Location</span><span className="v">{form.street}, {form.city}, {form.state} {form.zip}</span></div>

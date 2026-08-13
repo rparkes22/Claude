@@ -74,6 +74,7 @@
 
   .role-badge { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 100px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .role-admin { background: var(--violet-tint); color: var(--violet); }
+  .role-manager { background: var(--teal-tint); color: var(--teal); }
   .role-editor { background: var(--blue-tint); color: var(--blue-ink); }
   .role-viewer { background: var(--gray-tint); color: var(--ink-3); }
 
@@ -82,8 +83,8 @@
   .sidenav { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
   /* app brand: the Blueprint mark, then the product name, then who it's for */
   .sn-brand { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 4px 8px 16px; }
-  .sn-mark { grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 8px; display: block; }
-  .sn-wordmark { font-size: 15.5px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; align-self: end; }
+  .sn-mark { grid-row: 1 / span 2; width: 52px; height: 52px; border-radius: 11px; display: block; }
+  .sn-wordmark { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; align-self: end; }
   .sn-brand .sn-sub { align-self: start; white-space: nowrap; }
   .sn-sub { font-size: 10.5px; color: var(--ink-3); }
   /* project number, shown inline wherever a project is named */
@@ -471,6 +472,19 @@
   #letter-print-root .letter-sheet:last-child{page-break-after:auto}
   /* one printed page per letter: fixed table height drops the contact line to the
      page foot instead of leaving it tucked under a short letter */
+  /* Keep report blocks whole across page breaks. Without this a section heading can be
+     stranded at the foot of a page, a table row split down the middle, or a card cut in
+     half — the report had no break control at all. */
+  .sheet .section, .sheet .changes-box, .sheet .tb-meta, .sheet .foot,
+  .sheet .step, .sheet .section tr, .sheet .bcard { break-inside: avoid; page-break-inside: avoid; }
+  /* the letterhead scaffold itself must stay breakable — its body row holds the whole
+     report, and marking it unbreakable pushed every page down by one, leaving page 1 blank */
+  .sheet .msa-doc, .sheet .msa-doc > tbody, .sheet .msa-doc > tbody > tr,
+  .sheet .msa-doc > tbody > tr > td { break-inside: auto; page-break-inside: auto; }
+  .sheet .section-hd, .sheet h2, .sheet h3 { break-after: avoid; page-break-after: avoid; }
+  .sheet thead { display: table-header-group; }
+  .sheet p, .sheet li { orphans: 3; widows: 3; }
+
   /* one printed page per letter, on a flush page box (see letter-page-style) */
   .msa-doc-1p{height:11in}
   .letter-sheet .msa-doc{height:auto}

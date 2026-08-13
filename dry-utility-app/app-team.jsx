@@ -5,16 +5,9 @@
 function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, showToast }) {
   const [expandedUser, setExpandedUser] = React.useState(null);
   const [dismissed, setDismissed] = React.useState([]);
-  // per-person capacity (open-task limit), persisted
-  const CAP_KEY = 'msa_app_capacity_v1';
-  const DEFAULT_CAP = 8;
-  const [caps, setCaps] = React.useState(() => { try { return JSON.parse(localStorage.getItem(CAP_KEY)) || {}; } catch (e) { return {}; } });
-  const capOf = (uid) => caps[uid] ?? DEFAULT_CAP;
-  const setCap = (uid, v) => setCaps(prev => {
-    const next = { ...prev, [uid]: Math.max(1, Math.min(30, v)) };
-    try { localStorage.setItem(CAP_KEY, JSON.stringify(next)); } catch (e) {}
-    return next;
-  });
+  // No per-person task cap. Load is uneven by design — the division manager carries a
+  // large share — so the workload bar is scaled against the busiest person rather than
+  // an arbitrary limit, and nobody is flagged "over capacity".
 
   // task ownership: explicit assignee, else the project's PM (by initials)
   const rows = React.useMemo(() => {
@@ -70,18 +63,18 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
   const maxLoad = Math.max(1, ...rows.map(r => r.tasks.length));
   const avatarColors = ['#1d4e89', '#0f766e', '#6d28d9', '#b45309', '#be185d', '#4d7c0f'];
 
-  // rebalancing: move tasks from over-capacity people to those with the most headroom
+  // Rebalancing looks at imbalance between people, not at a cap: only suggest a move
+  // while the busiest person is carrying meaningfully more than the lightest.
+  const SPREAD = 3; // tasks of difference before a move is worth suggesting
   const suggestions = React.useMemo(() => {
-    const loads = rows.map(r => ({ u: r.u, n: r.tasks.length, cap: capOf(r.u.id), pool: [...r.tasks] }));
+    const loads = rows.map(r => ({ u: r.u, n: r.tasks.length, pool: [...r.tasks] }));
     const out = [];
     for (let step = 0; step < 4; step++) {
-      loads.sort((a, b) => (b.n - b.cap) - (a.n - a.cap));
+      loads.sort((a, b) => b.n - a.n);
       const busiest = loads[0];
-      const lightest = loads.slice().sort((a, b) => (a.n - a.cap) - (b.n - b.cap))[0];
+      const lightest = loads[loads.length - 1];
       if (!busiest || !lightest || busiest.u.id === lightest.u.id) break;
-      const overBy = busiest.n - busiest.cap;
-      const headroom = lightest.cap - lightest.n;
-      if (overBy <= 0 || headroom <= 0) break;
+      if (busiest.n - lightest.n < SPREAD) break;
       const candidates = busiest.pool.filter(x => x.t.status !== 'resubmit');
       if (!candidates.length) break;
       candidates.sort((a, b) => {
@@ -96,7 +89,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
       out.push({ from: busiest.u, to: lightest.u, p: pick.p, t: pick.t, id: `${pick.p.id}|${pick.t._key}` });
     }
     return out;
-  }, [rows, caps]);
+  }, [rows]);
   const visibleSuggestions = suggestions.filter(s => !dismissed.includes(s.id));
 
   // weekly digest config (persisted)
@@ -145,21 +138,18 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                 </div>
                 <div style={{ padding: 16, fontSize: 13, lineHeight: 1.6 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 12 }}>
-                    <thead><tr style={{ textAlign: 'left', color: 'var(--ink-3)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}><th style={{ padding: '4px 8px 4px 0' }}>Person</th><th style={{ padding: '4px 8px' }}>Open</th><th style={{ padding: '4px 8px' }}>Capacity</th><th style={{ padding: '4px 8px' }}>Overdue</th><th style={{ padding: '4px 0' }}>Status</th></tr></thead>
+                    <thead><tr style={{ textAlign: 'left', color: 'var(--ink-3)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}><th style={{ padding: '4px 8px 4px 0' }}>Person</th><th style={{ padding: '4px 8px' }}>Open</th><th style={{ padding: '4px 8px' }}>Share</th><th style={{ padding: '4px 0' }}>Overdue</th></tr></thead>
                     <tbody>
-                      {rows.map(r => {
-                        const cap = capOf(r.u.id);
-                        const over = r.tasks.length > cap;
+                      {(() => { const total = rows.reduce((n, r) => n + r.tasks.length, 0) || 1; return rows.map(r => {
                         return (
                           <tr key={r.u.id} style={{ borderTop: '1px solid var(--border)' }}>
                             <td style={{ padding: '5px 8px 5px 0', fontWeight: 600 }}>{r.u.name}</td>
                             <td className="mono" style={{ padding: '5px 8px' }}>{r.tasks.length}</td>
-                            <td className="mono" style={{ padding: '5px 8px' }}>{cap}</td>
-                            <td className="mono" style={{ padding: '5px 8px', color: r.overdue > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{r.overdue}</td>
-                            <td style={{ padding: '5px 0' }}>{over ? <b style={{ color: 'var(--warn)' }}>+{r.tasks.length - cap} over capacity</b> : r.tasks.length === cap ? <b style={{ color: 'var(--amber)' }}>at capacity</b> : 'ok'}</td>
+                            <td className="mono" style={{ padding: '5px 8px' }}>{Math.round((r.tasks.length / total) * 100)}%</td>
+                            <td className="mono" style={{ padding: '5px 0', color: r.overdue > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{r.overdue}</td>
                           </tr>
                         );
-                      })}
+                      }); })()}
                     </tbody>
                   </table>
                   {visibleSuggestions.length > 0 && (
@@ -182,23 +172,13 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
         )}
       </div>
       {(() => {
-        const over = rows.filter(r => r.tasks.length > capOf(r.u.id));
-        const at = rows.filter(r => r.tasks.length === capOf(r.u.id));
-        if (!over.length && !at.length) return null;
+        const busiest = rows[0];
+        const lightest = rows[rows.length - 1];
+        if (!busiest || !lightest || !visibleSuggestions.length) return null;
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-            {over.length > 0 && (
-              <div className="callout crit" style={{ margin: 0 }}>
-                <Icon name="alert" size={16} />
-                <div><b>Over capacity:</b> {over.map(r => `${r.u.name} (${r.tasks.length}/${capOf(r.u.id)})`).join(', ')} — {visibleSuggestions.length > 0 ? 'see rebalancing suggestions below.' : 'no teammate currently has headroom to absorb the overflow.'}</div>
-              </div>
-            )}
-            {at.length > 0 && (
-              <div className="callout warn" style={{ margin: 0 }}>
-                <Icon name="clock" size={16} />
-                <div><b>At capacity:</b> {at.map(r => `${r.u.name} (${r.tasks.length}/${capOf(r.u.id)})`).join(', ')} — any new assignment will trigger an over-capacity warning.</div>
-              </div>
-            )}
+          <div className="callout warn" style={{ margin: '0 0 14px' }}>
+            <Icon name="clock" size={16} />
+            <div><b>Uneven load:</b> {busiest.u.name} is carrying {busiest.tasks.length} open task{busiest.tasks.length === 1 ? '' : 's'} against {lightest.u.name}'s {lightest.tasks.length} — see the suggested moves below.</div>
           </div>
         );
       })()}
@@ -206,7 +186,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
         <div className="panel" style={{ marginBottom: 14 }}>
           <div className="panel-hd">
             <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: 'var(--amber)' }}><Icon name="alert" size={14} /></span>Rebalancing suggestions</h2>
-            <span className="meta">{visibleSuggestions.length} suggested move{visibleSuggestions.length === 1 ? '' : 's'} to bring everyone under capacity</span>
+            <span className="meta">{visibleSuggestions.length} suggested move{visibleSuggestions.length === 1 ? '' : 's'} to even out the load</span>
           </div>
           {visibleSuggestions.map((s, i) => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderTop: i === 0 ? 'none' : '1px solid var(--border)', fontSize: 12.5, flexWrap: 'wrap' }}>
@@ -220,12 +200,12 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
               <button className="btn btn-ghost btn-sm" onClick={() => setDismissed(d => [...d, s.id])}>Dismiss</button>
             </div>
           ))}
-          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink-4)' }}>Suggestions move the least-urgent tasks (unscheduled or furthest due date; resubmittals excluded) from people over their capacity to teammates with headroom.</div>
+          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink-4)' }}>Suggestions move the least-urgent tasks (unscheduled or furthest due date; resubmittals excluded) from the busiest person to the lightest, and only while the gap is 3 tasks or more.</div>
         </div>
       )}
       <div className="grid-wrap">
         <table className="grid">
-          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load vs capacity</th><th style={{ width: 110 }}>Capacity</th><th style={{ width: 90 }}>Overdue</th><th style={{ width: 90 }}>Due 7d</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
+          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load</th><th style={{ width: 90 }}>Overdue</th><th style={{ width: 90 }}>Due 7d</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
           <tbody>
             {rows.map((r, ri) => (
               <React.Fragment key={r.u.id}>
@@ -241,28 +221,18 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                   </td>
                   <td>
                     {(() => {
-                      const cap = capOf(r.u.id);
-                      const over = r.tasks.length > cap;
-                      const pct = Math.min(100, (r.tasks.length / cap) * 100);
+                      // relative to the busiest person, so a heavy load reads as heavy
+                      // without implying anyone has exceeded a limit
+                      const pct = Math.round((r.tasks.length / maxLoad) * 100);
                       return (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 320 }}>
                           <span style={{ flex: 1, height: 9, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden', position: 'relative' }}>
-                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: over ? 'var(--warn)' : r.overdue > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.85 }}></span>
+                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: r.overdue > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.85 }}></span>
                           </span>
-                          <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', color: over ? 'var(--warn)' : 'var(--ink)' }}>{r.tasks.length}/{cap}</span>
-                          {over && <span className="days-chip crit" style={{ flexShrink: 0 }}>+{r.tasks.length - cap} over</span>}
+                          <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tasks.length}</span>
                         </span>
                       );
                     })()}
-                  </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    {canWrite ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <button className="btn btn-sm btn-icon" style={{ width: 22, height: 22 }} onClick={() => setCap(r.u.id, capOf(r.u.id) - 1)}>−</button>
-                        <span className="mono" style={{ fontSize: 12.5, width: 20, textAlign: 'center' }}>{capOf(r.u.id)}</span>
-                        <button className="btn btn-sm btn-icon" style={{ width: 22, height: 22 }} onClick={() => setCap(r.u.id, capOf(r.u.id) + 1)}>+</button>
-                      </span>
-                    ) : <span className="mono" style={{ fontSize: 12.5 }}>{capOf(r.u.id)}</span>}
                   </td>
                   <td>{r.overdue > 0 ? <span className="days-chip crit">{r.overdue}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
                   <td>{r.dueSoon > 0 ? <span className="days-chip warn">{r.dueSoon}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
@@ -298,7 +268,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-4)' }}>Open load = unapproved tasks either assigned to the person or unassigned on projects they PM. Capacity is each person's open-task limit — bars turn red past it. Click a row to see the task list.</div>
+      <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-4)' }}>Open load = unapproved tasks either assigned to the person or unassigned on projects they PM. There is no per-person cap — bars are scaled against the busiest person. Click a row to see the task list.</div>
     </div>
   );
 }

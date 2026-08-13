@@ -698,10 +698,41 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
 }
 
 // ===== REPORTS PAGE =====
-function ReportsPage({ projects, canWrite, showToast, initialCode }) {
+// Filed client reports, keyed by project id. Each entry stores the report model as it
+// read when issued, so the record never drifts with the live project.
+const REPORTS_KEY = 'msa_app_reports_v1';
+function loadReports() { try { return JSON.parse(localStorage.getItem(REPORTS_KEY)) || {}; } catch (e) { return {}; } }
+function persistReports(r) { try { localStorage.setItem(REPORTS_KEY, JSON.stringify(r)); } catch (e) {} }
+
+function ReportsPage({ projects, users, currentUser, canWrite, showToast, initialCode }) {
   const [code, setCode] = React.useState(initialCode || projects[0]?.code || '');
+  const [reports, setReports] = React.useState(loadReports);
+  const [viewing, setViewing] = React.useState(null);   // an archived record, or null for live
   React.useEffect(() => { if (initialCode) setCode(initialCode); }, [initialCode]);
+  React.useEffect(() => { setViewing(null); }, [code]);
   const project = projects.find(p => p.code === code) || projects[0];
+  const history = React.useMemo(
+    () => ((project && reports[project.id]) || []).slice().sort((a, b) => b.ts.localeCompare(a.ts)),
+    [reports, project]);
+  // Filing is idempotent within a period: printing after issuing shouldn't file twice.
+  const issueReport = (model, quiet) => {
+    if (!canWrite || !project) return;
+    const nowIso = new Date().toISOString();
+    const stamp = fmt(TODAY);
+    const already = (reports[project.id] || []).some(r => r.issuedAt === stamp && r.model.period === model.period);
+    if (already) { if (!quiet) showToast('Already filed for this period'); return; }
+    const rec = { id: 'rpt-' + nowIso, ts: nowIso, issuedAt: stamp, by: (currentUser && currentUser.name) || 'MSA', model };
+    const next = { ...reports, [project.id]: [...(reports[project.id] || []), rec] };
+    setReports(next); persistReports(next);
+    if (!quiet) showToast(`Report filed — ${projLabel(project)} · ${model.period}`);
+  };
+  const deleteReport = (id) => {
+    if (!project) return;
+    const next = { ...reports, [project.id]: (reports[project.id] || []).filter(r => r.id !== id) };
+    setReports(next); persistReports(next);
+    if (viewing && viewing.id === id) setViewing(null);
+    showToast('Filed report removed');
+  };
   if (!project) return <div className="empty"><h3>No projects yet</h3></div>;
   const wd = deriveWsl(project.wsl);
   const cadence = project.reporting.cadence;
@@ -737,15 +768,91 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
   if (openDD) steps.push({ t: `Complete ${openDD.name} for the due-diligence package.`, o: `Currently ${DD_META[openDD.status].label}.` });
   if (steps.length === 0) steps.push({ t: `Maintain ${cadence.toLowerCase()} client coordination.`, o: 'Standing item.' });
 
+  // ---- report model ----------------------------------------------------------
+  // Everything the report shows, resolved to plain values. A report that has been
+  // issued is a record of that moment, so archived copies are rendered from a stored
+  // model rather than re-derived from live data — otherwise last month's report would
+  // silently change as the project moves on.
+  const pmUser = users.find(u => u.initials === project.pm);
+  const who = (u, fallback) => u ? `${u.name}, ${u.title}` : fallback;
+  const model = React.useMemo(() => {
+    const research = (() => {
+      const rows = getResearchRows(project);
+      const got = rows.filter(r => r.received).length;
+      return {
+        rows: rows.map(r => ({
+          label: r.label,
+          sent: r.sent ? fmtShort(r.sent) : '—',
+          received: r.received ? fmtShort(r.received) : null,
+          noResponse: !!r.noResponse,
+          days: r.sent ? daysBetween(r.sent, TODAY) : 0,
+        })),
+        got, total: rows.length, waiting: rows.length - got,
+      };
+    })();
+    const eub = hasEubSec ? (() => {
+      const st = eubStRpt || { stage: 0, plots: {} };
+      let jur = {}; try { jur = (JSON.parse(localStorage.getItem('msa_app_jurisdiction_v1')) || {})[project.id] || {}; } catch (e) {}
+      const rows = getResearchRows(project).filter(r => jur[r.id] !== 'none');
+      return {
+        stageLabel: EUB_STAGES[st.stage],
+        issued: st.stage === 3 && st.issued ? fmtShort(st.issued) : null,
+        plotted: rows.filter(r => (st.plots || {})[r.id] === 'done').length,
+        total: rows.length,
+      };
+    })() : null;
+    const coord = cmItemsRpt.length ? {
+      num: cmNum,
+      open: cmItemsRpt.filter(i => !i.closed).length,
+      done: cmItemsRpt.filter(i => i.closed).length,
+      items: cmItemsRpt.map(it => {
+        const ball = cmBall(it);
+        const H = { utility: ['Utility', 'b-amber'], client: ['Client', 'b-blue'], msa: ['MSA', 'b-violet'], done: ['Complete', 'b-ok'] }[ball.holder];
+        return {
+          name: it.name, agency: AGENCIES[it.agency]?.short || it.agency,
+          holder: H[0], badge: H[1], step: ball.step,
+          since: ball.since ? fmtShort(ball.since) : null,
+          days: cmDays(ball.since), closed: !!it.closed,
+        };
+      }),
+    } : null;
+    return {
+      code: project.code, name: project.name, client: project.client,
+      location: locString(project.location), phase: project.phase,
+      pm: pmUser ? pmUser.name : (project.pm && project.pm !== '—' ? project.pm : 'Unassigned'),
+      pmLine: who(pmUser, 'the project manager'),
+      cadence, period: `${fmtShort(periodStart)} – ${fmtShort(TODAY)}`,
+      asOf: fmt(TODAY),
+      changes,
+      wsl: wd ? {
+        daysLeft: wd.daysLeft, state: wd.state,
+        expiry: fmt(wd.effectiveExpiry), issued: fmtShort(wd.issued),
+        issuedYear: parseDate(wd.issued).getFullYear(),
+        extensionUsed: !!wd.extensionUsed,
+        extensionSub: wd.extensionUsed ? 'no further' : `1× ${wd.extensionMonths}-month`,
+      } : null,
+      sce: wd ? null : { status: project.sce?.ear || 'Not started', asOf: project.sce?.earDate ? `as of ${fmtShort(project.sce.earDate)}` : '' },
+      research, eub, coord,
+      steps: steps.slice(0, 4), nextNum,
+    };
+  }, [project, cadence, changes, wd, steps, nextNum, cmNum, hasEubSec]);
+
+  const shown = viewing ? viewing.model : model;
+  const issuedStamp = viewing ? viewing.issuedAt : null;
+
   return (
     <div>
       <div className="toolbar">
-        <select className="select" style={{ width: 320 }} value={code} onChange={e => setCode(e.target.value)}>
+        <select className="select" style={{ width: 320 }} value={code} onChange={e => { setCode(e.target.value); setViewing(null); }}>
           {projects.map(p => <option key={p.code} value={p.code}>{p.code} · {p.name} · {p.client}</option>)}
         </select>
         <span className="badge b-blue"><span className="badge-dot"></span>{cadence}</span>
+        {viewing && <span className="badge b-violet"><span className="badge-dot"></span>Issued {viewing.issuedAt}</span>}
         <div className="toolbar-spacer"></div>
-        <button className="btn btn-primary" disabled={!canWrite} onClick={() => { window.print(); }}><Icon name="print" size={14} />Print / Save PDF</button>
+        {viewing
+          ? <button className="btn" onClick={() => setViewing(null)}>Back to current</button>
+          : <button className="btn" disabled={!canWrite} onClick={() => issueReport(model)}><Icon name="check" size={14} />Issue &amp; file</button>}
+        <button className="btn btn-primary" disabled={!canWrite} onClick={() => { if (!viewing) issueReport(model, true); window.print(); }}><Icon name="print" size={14} />Print / Save PDF</button>
         {!canWrite && <span className="readonly-note"><Icon name="lock" size={11} />Read-only role</span>}
       </div>
 
@@ -754,35 +861,36 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
           {/* the letterhead table repeats its header/footer on every printed page */}
           <LetterheadDoc>
           <div className="lh">
-            <div className="lh-doc">{cadence} Project Update</div>
-            <div className="lh-period">{fmtShort(periodStart)} – {fmtShort(TODAY)}</div>
+            <div className="lh-doc">{shown.cadence} Project Update</div>
+            <div className="lh-period">{shown.period}</div>
           </div>
-          <div className="tb-project">{project.name}</div>
+          <div className="tb-project">{shown.name}</div>
           <div className="tb-meta">
-            <div className="m"><div className="l">Client</div><div className="v">{project.client}</div></div>
-            <div className="m"><div className="l">Project No.</div><div className="v mono">{project.code}</div></div>
-            <div className="m"><div className="l">Location</div><div className="v">{locString(project.location)}</div></div>
-            <div className="m"><div className="l">Phase</div><div className="v">{project.phase}</div></div>
+            <div className="m"><div className="l">Client</div><div className="v">{shown.client}</div></div>
+            <div className="m"><div className="l">Project No.</div><div className="v mono">{shown.code}</div></div>
+            <div className="m"><div className="l">Project Manager</div><div className="v">{shown.pm}</div></div>
+            <div className="m"><div className="l">Location</div><div className="v">{shown.location}</div></div>
+            <div className="m"><div className="l">Phase</div><div className="v">{shown.phase}</div></div>
           </div>
 
-          {changes.length > 0 && (
+          {shown.changes.length > 0 && (
             <div className="changes-box">
-              <div className="changes-hd"><Icon name="bolt" size={14} />Changes Since Last Report · {changes.length}</div>
-              <ul className="changes-list">{changes.map((c, i) => <li key={i}>{c}</li>)}</ul>
+              <div className="changes-hd"><Icon name="bolt" size={14} />Changes Since Last Report · {shown.changes.length}</div>
+              <ul className="changes-list">{shown.changes.map((c, i) => <li key={i}>{c}</li>)}</ul>
             </div>
           )}
 
           <div className="section">
-            <div className="section-hd"><h2>{wd ? 'Will Serve Letter' : 'SCE Electrical Review'}</h2><span className="num">01</span></div>
-            {wd ? (
+            <div className="section-hd"><h2>{shown.wsl ? 'Will Serve Letter' : 'SCE Electrical Review'}</h2><span className="num">01</span></div>
+            {shown.wsl ? (
               <div className="wsl-strip">
-                <div className="wsl-box"><div className="wb-lab">Days to expiry</div><div className="wb-val" style={{ color: wd.daysLeft <= 60 ? 'var(--warn)' : 'var(--ink)' }}>{wd.state === 'expired' ? 'Expired' : wd.daysLeft}</div><div className="wb-sub">{fmt(wd.effectiveExpiry)}</div></div>
-                <div className="wsl-box"><div className="wb-lab">Issued</div><div className="wb-val">{fmtShort(wd.issued)}</div><div className="wb-sub">{parseDate(wd.issued).getFullYear()}</div></div>
-                <div className="wsl-box"><div className="wb-lab">Extension</div><div className="wb-val">{wd.extensionUsed ? 'Used' : 'Available'}</div><div className="wb-sub">{wd.extensionUsed ? 'no further' : '1× 6-month'}</div></div>
+                <div className="wsl-box"><div className="wb-lab">Days to expiry</div><div className="wb-val" style={{ color: shown.wsl.daysLeft <= 60 ? 'var(--warn)' : 'var(--ink)' }}>{shown.wsl.state === 'expired' ? 'Expired' : shown.wsl.daysLeft}</div><div className="wb-sub">{shown.wsl.expiry}</div></div>
+                <div className="wsl-box"><div className="wb-lab">Issued</div><div className="wb-val">{shown.wsl.issued}</div><div className="wb-sub">{shown.wsl.issuedYear}</div></div>
+                <div className="wsl-box"><div className="wb-lab">Extension</div><div className="wb-val">{shown.wsl.extensionUsed ? 'Used' : 'Available'}</div><div className="wb-sub">{shown.wsl.extensionSub}</div></div>
               </div>
             ) : (
               <div className="wsl-strip">
-                <div className="wsl-box"><div className="wb-lab">Review status</div><div className="wb-val" style={{ fontSize: 15 }}>{project.sce?.ear || 'Not started'}</div><div className="wb-sub">{project.sce?.earDate ? `as of ${fmtShort(project.sce.earDate)}` : ''}</div></div>
+                <div className="wsl-box"><div className="wb-lab">Review status</div><div className="wb-val" style={{ fontSize: 15 }}>{shown.sce.status}</div><div className="wb-sub">{shown.sce.asOf}</div></div>
                 <div className="wsl-box"><div className="wb-lab">Process</div><div className="wb-val" style={{ fontSize: 15, fontFamily: 'inherit' }}>Electrical analysis</div><div className="wb-sub">no WSL required</div></div>
               </div>
             )}
@@ -790,88 +898,67 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
 
           <div className="section">
             <div className="section-hd"><h2>Utility Research</h2><span className="num">02</span></div>
-            {(() => {
-              const recOv = (() => { try { return JSON.parse(localStorage.getItem('msa_app_research_v1')) || {}; } catch (e) { return {}; } })();
-              const added = typeof loadAddedResearch === 'function' ? (loadAddedResearch()[project.id] || []) : [];
-              const rows = [...(project.research || []), ...added].map(r => {
-                const o = recOv[project.id] || {};
-                return Object.prototype.hasOwnProperty.call(o, r.id) ? { ...r, received: o[r.id] } : r;
-              });
-              if (!rows.length) return <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>No research letters sent for this project.</div>;
-              const got = rows.filter(r => r.received).length;
-              const waiting = rows.length - got;
-              return (
-                <>
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>{got} of {rows.length} agency responses received.{waiting > 0 ? ` ${waiting} outstanding letter${waiting === 1 ? '' : 's'} — followed up by Domonique Moreno, Project Manager.` : ' Research phase complete — Existing Utility Plan preparation with Michael Schreiber, Dry Utility Manager.'}</div>
-                  <table className="rp-table">
-                    <thead><tr><th>Utility</th><th>Letter sent</th><th>Status</th><th style={{ textAlign: 'right' }}>Received</th></tr></thead>
-                    <tbody>
-                      {rows.map((r, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{r.label}</td>
-                          <td className="mono">{fmtShort(r.sent)}</td>
-                          <td><span className={`badge ${r.received ? 'b-ok' : daysBetween(r.sent, TODAY) > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? 'Received' : `Awaiting response · ${daysBetween(r.sent, TODAY)}d`}</span></td>
-                          <td style={{ textAlign: 'right' }} className="mono">{r.received ? fmtShort(r.received) : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              );
-            })()}
-          </div>
-
-          {hasEubSec && (() => {
-            const st = eubStRpt || { stage: 0, plots: {} };
-            let jur = {}; try { jur = (JSON.parse(localStorage.getItem('msa_app_jurisdiction_v1')) || {})[project.id] || {}; } catch (e) {}
-            const rows = getResearchRows(project).filter(r => jur[r.id] !== 'none');
-            const plotted = rows.filter(r => (st.plots || {})[r.id] === 'done').length;
-            return (
-              <div className="section">
-                <div className="section-hd"><h2>Existing Utility Plan</h2><span className="num">03</span></div>
+            {shown.research.total === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>No research letters sent for this project.</div>
+            ) : (
+              <>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>
-                  Deliverable stage: <b>{EUB_STAGES[st.stage]}</b>{st.stage === 3 && st.issued ? ` (${fmtShort(st.issued)})` : ''} · {plotted} of {rows.length} responding utilities plotted onto the base map. Prepared by Michael Schreiber, Dry Utility Manager.
+                  {shown.research.got} of {shown.research.total} agency responses received.
+                  {shown.research.waiting > 0
+                    ? ` ${shown.research.waiting} outstanding letter${shown.research.waiting === 1 ? '' : 's'} — followed up by ${shown.pmLine}.`
+                    : ` Research phase complete — Existing Utility Plan preparation with ${shown.pmLine}.`}
                 </div>
-              </div>
-            );
-          })()}
-
-          {(() => {
-            const cm = (typeof cmLoad === 'function' ? cmLoad() : {})[project.id];
-            const cmItems = (cm && cm.items) || [];
-            if (!cmItems.length) return null;
-            const open = cmItems.filter(i => !i.closed);
-            return (
-              <div className="section">
-                <div className="section-hd"><h2>Utility Coordination</h2><span className="num">{cmNum}</span></div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>{open.length} open hand-off{open.length === 1 ? '' : 's'} · {cmItems.length - open.length} complete.</div>
                 <table className="rp-table">
-                  <thead><tr><th>Item</th><th>Agency</th><th>Ball in court</th><th>Last action</th><th style={{ textAlign: 'right' }}>Waiting</th></tr></thead>
+                  <thead><tr><th>Utility</th><th>Letter sent</th><th>Status</th><th style={{ textAlign: 'right' }}>Received</th></tr></thead>
                   <tbody>
-                    {cmItems.map((it, i) => {
-                      const ball = cmBall(it);
-                      const days = cmDays(ball.since);
-                      const H = { utility: ['Utility', 'b-amber'], client: ['Client', 'b-blue'], msa: ['MSA', 'b-violet'], done: ['Complete', 'b-ok'] }[ball.holder];
-                      return (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600, color: 'var(--ink)', textDecoration: it.closed ? 'line-through' : 'none' }}>{it.name}</td>
-                          <td>{AGENCIES[it.agency]?.short || it.agency}</td>
-                          <td><span className={`badge ${H[1]}`}><span className="badge-dot"></span>{H[0]}</span></td>
-                          <td style={{ fontSize: 12 }}>{ball.step}{ball.since ? ` · ${fmtShort(ball.since)}` : ''}</td>
-                          <td style={{ textAlign: 'right' }} className="mono">{it.closed ? '—' : `${days}d`}</td>
-                        </tr>
-                      );
-                    })}
+                    {shown.research.rows.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{r.label}</td>
+                        <td className="mono">{r.sent}</td>
+                        <td><span className={`badge ${r.received ? 'b-ok' : r.noResponse ? 'b-gray' : r.days > 45 ? 'b-warn' : 'b-amber'}`}><span className="badge-dot"></span>{r.received ? 'Received' : r.noResponse ? 'No response' : `Awaiting response · ${r.days}d`}</span></td>
+                        <td style={{ textAlign: 'right' }} className="mono">{r.received || '—'}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+              </>
+            )}
+          </div>
+
+          {shown.eub && (
+            <div className="section">
+              <div className="section-hd"><h2>Existing Utility Plan</h2><span className="num">03</span></div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>
+                Deliverable stage: <b>{shown.eub.stageLabel}</b>{shown.eub.issued ? ` (${shown.eub.issued})` : ''} · {shown.eub.plotted} of {shown.eub.total} responding utilities plotted onto the base map. Prepared by {shown.pmLine}.
               </div>
-            );
-          })()}
+            </div>
+          )}
+
+          {shown.coord && (
+            <div className="section">
+              <div className="section-hd"><h2>Utility Coordination</h2><span className="num">{shown.coord.num}</span></div>
+              <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 8 }}>{shown.coord.open} open hand-off{shown.coord.open === 1 ? '' : 's'} · {shown.coord.done} complete.</div>
+              <table className="rp-table">
+                <thead><tr><th>Item</th><th>Agency</th><th>Ball in court</th><th>Last action</th><th style={{ textAlign: 'right' }}>Waiting</th></tr></thead>
+                <tbody>
+                  {shown.coord.items.map((it, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600, color: 'var(--ink)', textDecoration: it.closed ? 'line-through' : 'none' }}>{it.name}</td>
+                      <td>{it.agency}</td>
+                      <td><span className={`badge ${it.badge}`}><span className="badge-dot"></span>{it.holder}</span></td>
+                      <td style={{ fontSize: 12 }}>{it.step}{it.since ? ` · ${it.since}` : ''}</td>
+                      <td style={{ textAlign: 'right' }} className="mono">{it.closed ? '—' : `${it.days}d`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="section">
-            <div className="section-hd"><h2>Next Steps</h2><span className="num">{nextNum}</span></div>
+            <div className="section-hd"><h2>Next Steps</h2><span className="num">{shown.nextNum}</span></div>
             <div className="steps">
-              {steps.slice(0, 4).map((s, i) => (
+              {shown.steps.map((s, i) => (
                 <div className="step" key={i}><div className="step-n">{i + 1}</div><div className="step-body">{s.t}<div className="so">{s.o}</div></div></div>
               ))}
             </div>
@@ -879,14 +966,56 @@ function ReportsPage({ projects, canWrite, showToast, initialCode }) {
 
           <div className="foot">
             <div className="foot-note">
-              Standardized {cadence.toLowerCase()} update. Highlighted items reflect changes since the prior report. Current as of {fmt(TODAY)}.
-              <div style={{ marginTop: 4 }}>Prepared by MSA Consulting Dry Utility Division</div>
+              Standardized {shown.cadence.toLowerCase()} update. Highlighted items reflect changes since the prior report. Current as of {shown.asOf}.
+              <div style={{ marginTop: 4 }}>Prepared by MSA Consulting Dry Utility Division{issuedStamp ? ` · issued ${issuedStamp}` : ''}</div>
             </div>
-            <div className="foot-page">{project.code}</div>
+            <div className="foot-page">{shown.code}</div>
           </div>
           </LetterheadDoc>
         </div>
       </div>
+
+      <ReportHistory
+        history={history} viewing={viewing}
+        onView={(rec) => setViewing(rec)} onBack={() => setViewing(null)}
+        onDelete={canWrite ? (id) => deleteReport(id) : null}
+      />
+    </div>
+  );
+}
+
+// Past reports for one project, newest first. A filed report is a fixed record of what
+// the client was told, so it is never regenerated — only re-displayed.
+function ReportHistory({ history, viewing, onView, onBack, onDelete }) {
+  return (
+    <div className="panel" style={{ marginTop: 16 }}>
+      <div className="panel-hd">
+        <h2>Report record</h2>
+        <span className="meta">{history.length} filed{viewing ? ' · viewing an archived copy' : ''}</span>
+      </div>
+      {history.length === 0 && (
+        <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>
+          No reports filed yet for this project. “Issue &amp; file” stores the report exactly as it reads today; printing files it too.
+        </div>
+      )}
+      {history.map((rec, i) => {
+        const active = viewing && viewing.id === rec.id;
+        return (
+          <div key={rec.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderTop: '1px solid var(--border)', fontSize: 12.5, background: active ? 'var(--primary-tint)' : 'transparent' }}>
+            <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)', width: 96 }}>{rec.issuedAt}</span>
+            <span style={{ fontWeight: 600 }}>{rec.model.cadence} update</span>
+            <span style={{ color: 'var(--ink-3)' }}>{rec.model.period}</span>
+            {i === 0 && <span className="badge b-gray" style={{ fontSize: 9.5 }}>latest</span>}
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>by {rec.by}</span>
+              {active
+                ? <button className="btn btn-sm" onClick={onBack}>Close</button>
+                : <button className="btn btn-sm" onClick={() => onView(rec)}>View</button>}
+              {onDelete && <button className="btn btn-ghost btn-sm" style={{ color: 'var(--warn)', padding: '0 6px' }} title="Remove this filed report" onClick={() => onDelete(rec.id)}><Icon name="x" size={11} /></button>}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1183,8 +1312,9 @@ function App() {
     showToast(phase === 'Complete' ? `${projLabel(p)} marked complete — moved to archive` : `${projLabel(p)} → ${phase}`);
   };
 
-  const canWrite = currentUser ? (currentUser.role === 'admin' || currentUser.role === 'editor') : false;
-  const isAdmin = currentUser?.role === 'admin';
+  const canWrite = can(currentUser, 'addProjects');
+  const isAdmin = can(currentUser, 'manageUsers');
+  const canSetup = can(currentUser, 'manageSetup');
 
   const login = (u) => { setSessionId(u.id); persistSession(u.id); showToast(`Welcome, ${u.name.split(' ')[0]}`); };
   const logout = () => { setSessionId(null); persistSession(null); setPage('tracker'); };
@@ -1266,18 +1396,7 @@ function App() {
   const onTaskAssign = (pid, taskKey, userId) => {
     if (!canWrite) return;
     const u = users.find(x => x.id === userId);
-    if (u) {
-      // capacity check (same ownership rule as the Team page)
-      let caps = {}; try { caps = JSON.parse(localStorage.getItem('msa_app_capacity_v1')) || {}; } catch (e) {}
-      const cap = caps[u.id] ?? 8;
-      let load = 0;
-      projects.filter(x => x.phase !== 'Complete').forEach(pr => pr.tasks.forEach(t => {
-        if (t.status === 'ok') return;
-        if (pr.id === pid && t._key === taskKey) return; // the task being moved
-        if (t.assignee ? t.assignee === u.id : pr.pm === u.initials) load++;
-      }));
-      if (load + 1 > cap && !window.confirm(`${u.name} is already at ${load}/${cap} capacity. Assign anyway?`)) return;
-    }
+    // No capacity gate: load is uneven by design and an assignment is never blocked.
     patchTask(pid, taskKey, { assignee: userId || null });
     showToast(u ? `Assigned to ${u.name}` : 'Assignee cleared');
   };
@@ -1307,12 +1426,11 @@ function App() {
     showToast(`${proj.code} · ${proj.name} created`);
   };
 
-  // per-user open load vs capacity (for assignee dropdowns)
+  // per-user open load (for assignee dropdowns) — a count, not a ratio against a cap
   // NOTE: must stay above the LoginScreen early return — hooks can't come after a conditional return.
   const userLoads = React.useMemo(() => {
-    let caps = {}; try { caps = JSON.parse(localStorage.getItem('msa_app_capacity_v1')) || {}; } catch (e) {}
     const map = {};
-    users.forEach(u => { map[u.id] = { load: 0, cap: caps[u.id] ?? 8 }; });
+    users.forEach(u => { map[u.id] = { load: 0 }; });
     projects.filter(x => x.phase !== 'Complete').forEach(pr => pr.tasks.forEach(t => {
       if (t.status === 'ok') return;
       const u = t.assignee ? users.find(x => x.id === t.assignee) : users.find(x => x.initials === pr.pm);
@@ -1340,16 +1458,20 @@ function App() {
             <Icon name={pg.icon} />{pg.label}
             {pg.id === 'tracker' && <span className="sn-count">{projects.length}</span>}
           </button>
-        ))}        {isAdmin && (
+        ))}        {(isAdmin || canSetup) && (
           <>
             <div className="sn-sec">Admin</div>
-            <button className={`sn-item ${page === 'users' ? 'active' : ''}`} onClick={() => { setPage('users'); setOpenProjectId(null); }}>
-              <Icon name="users" />Users &amp; access
-              <span className="sn-count">{users.length}</span>
-            </button>
-            <button className={`sn-item ${page === 'catalog' ? 'active' : ''}`} onClick={() => { setPage('catalog'); setOpenProjectId(null); }}>
-              <Icon name="file" />Agency setup
-            </button>
+            {isAdmin && (
+              <button className={`sn-item ${page === 'users' ? 'active' : ''}`} onClick={() => { setPage('users'); setOpenProjectId(null); }}>
+                <Icon name="users" />Users &amp; access
+                <span className="sn-count">{users.length}</span>
+              </button>
+            )}
+            {canSetup && (
+              <button className={`sn-item ${page === 'catalog' ? 'active' : ''}`} onClick={() => { setPage('catalog'); setOpenProjectId(null); }}>
+                <Icon name="file" />Agency setup
+              </button>
+            )}
           </>
         )}
         <div className="sn-foot">
@@ -1403,18 +1525,18 @@ function App() {
               {page === 'dash' && <DashPage projects={activeProjects} users={users} currentUser={currentUser} onOpenProject={setOpenProjectId} onGoPage={setPage} />}
               {page === 'tracker' && <TrackerPage projects={activeProjects} completed={projects.filter(p => p.phase === 'Complete')} canWrite={canWrite} onAddClick={() => setWizardOpen(true)} onWslAction={onWslAction} showToast={showToast} onOpenProject={setOpenProjectId} />}
               {page === 'research' && <ResearchPage projects={activeProjects} onOpenProject={setOpenProjectId} />}
-              {page === 'coord' && <CoordPage projects={activeProjects} onOpenProject={setOpenProjectId} users={users} isAdmin={isAdmin} showToast={showToast} />}
+              {page === 'coord' && <CoordPage projects={activeProjects} onOpenProject={setOpenProjectId} users={users} isAdmin={canSetup} showToast={showToast} />}
               {page === 'wsl' && <WslPage projects={activeProjects} canWrite={canWrite} onWslAction={onWslAction} onOpenProject={setOpenProjectId} showToast={showToast} />}
-              {page === 'reports' && <ReportsPage projects={projects} canWrite={canWrite} showToast={showToast} initialCode={reportCode} />}
+              {page === 'reports' && <ReportsPage projects={projects} users={users} currentUser={currentUser} canWrite={canWrite} showToast={showToast} initialCode={reportCode} />}
               {page === 'team' && <TeamPage projects={activeProjects} users={users} canWrite={canWrite} onTaskAssign={onTaskAssign} onOpenProject={setOpenProjectId} showToast={showToast} />}
               {page === 'users' && isAdmin && <UsersPage users={users} setUsers={setUsers} currentUser={currentUser} showToast={showToast} />}
-              {page === 'catalog' && isAdmin && <CatalogPage projects={projects} showToast={showToast} />}
+              {page === 'catalog' && canSetup && <CatalogPage projects={projects} showToast={showToast} />}
             </>
           )}
         </div>
       </div>
 
-      <AddProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={onCreateProject} existingCodes={existingCodes} />
+      <AddProjectWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={onCreateProject} existingCodes={existingCodes} users={users} currentUser={currentUser} />
       <div className={`toast ${toast ? 'show' : ''}`}><Icon name="check" size={16} />{toast}</div>
     </div>
   );

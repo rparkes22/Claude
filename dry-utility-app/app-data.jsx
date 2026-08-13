@@ -6,36 +6,62 @@ const TODAY = new Date('2026-07-13T00:00:00');
 // Parse date-only strings (YYYY-MM-DD) as LOCAL midnight, not UTC — avoids off-by-one
 // display in negative-UTC-offset locales (e.g. US Pacific).
 const parseDate = (d) => (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? new Date(d + 'T00:00:00') : new Date(d);
-const addYears = (d, n) => { const x = parseDate(d); x.setFullYear(x.getFullYear() + n); return x; };
-const addMonths = (d, n) => { const x = parseDate(d); x.setMonth(x.getMonth() + n); return x; };
+// Calendar arithmetic clamps to the end of the target month instead of rolling over,
+// which is how an anniversary date is read on paper: a letter issued 31 Aug runs to
+// 28 Feb, not 3 Mar, and 29 Feb + 1 year is 28 Feb. Bare setMonth/setFullYear overflow.
+const lastDayOfMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+function shiftMonths(d, months) {
+  const x = parseDate(d);
+  const day = x.getDate();
+  const target = x.getMonth() + months;
+  const year = x.getFullYear() + Math.floor(target / 12);
+  const month = ((target % 12) + 12) % 12;
+  const out = new Date(year, month, Math.min(day, lastDayOfMonth(year, month)));
+  out.setHours(0, 0, 0, 0);
+  return out;
+}
+const addYears = (d, n) => shiftMonths(d, n * 12);
+const addMonths = (d, n) => shiftMonths(d, n);
 const addDays = (d, n) => { const x = parseDate(d); x.setDate(x.getDate() + n); return x; };
 const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
 const fmt = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtShort = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 // ===== USERS & ROLES =====
-// Roles: admin (full access + user mgmt), editor (read/write projects), viewer (read-only)
+// admin   — full access, including users & permissions
+// manager — full project access and assigns work across the team, but not user admin
+// editor  — read/write projects, letters, reports
+// viewer  — read-only
 const SEED_USERS = [
-  { id: 'u1', name: 'Michael Schreiber', initials: 'MS', email: 'mschreiber@msaconsultinginc.com', role: 'admin',  title: 'Dry Utility Manager' },
-  { id: 'u2', name: 'Domonique Moreno',  initials: 'DM', email: 'dmoreno@msaconsultinginc.com',    role: 'editor', title: 'Project Manager' },
-  { id: 'u3', name: 'Marco Celedon',     initials: 'MC', email: 'mceledon@msaconsultinginc.com',   role: 'editor', title: 'Project Engineer' },
+  { id: 'u0', name: 'Ryan Parkes',       initials: 'RP', email: 'rparkes@msaconsultinginc.com',    role: 'admin',   title: 'Application Administrator' },
+  { id: 'u1', name: 'Michael Schreiber', initials: 'MS', email: 'mschreiber@msaconsultinginc.com', role: 'manager', title: 'Dry Utility Manager' },
+  { id: 'u2', name: 'Domonique Moreno',  initials: 'DM', email: 'dmoreno@msaconsultinginc.com',    role: 'editor',  title: 'Project Manager' },
+  { id: 'u3', name: 'Marco Celedon',     initials: 'MC', email: 'mceledon@msaconsultinginc.com',   role: 'editor',  title: 'Project Engineer' },
 ];
 
 const ROLE_META = {
-  admin:  { label: 'Admin',  cls: 'role-admin',  desc: 'Full access · manage users & permissions' },
-  editor: { label: 'Editor', cls: 'role-editor', desc: 'Read & write projects, letters, reports' },
-  viewer: { label: 'Viewer', cls: 'role-viewer', desc: 'Read-only access' },
+  admin:   { label: 'Admin',   cls: 'role-admin',   desc: 'Full access · manage users & permissions' },
+  manager: { label: 'Manager', cls: 'role-manager', desc: 'Full project access · runs the division, assigns work' },
+  editor:  { label: 'Editor',  cls: 'role-editor',  desc: 'Read & write projects, letters, reports' },
+  viewer:  { label: 'Viewer',  cls: 'role-viewer',  desc: 'Read-only access' },
 };
 
 const PERMS = [
-  { key: 'viewProjects',  label: 'View projects, WSL & reports', admin: true, editor: true, viewer: true },
-  { key: 'addProjects',   label: 'Add / edit projects',          admin: true, editor: true, viewer: false },
-  { key: 'editTasks',     label: 'Update agency tasks & submittals', admin: true, editor: true, viewer: false },
-  { key: 'wslActions',    label: 'WSL extensions & re-applications', admin: true, editor: true, viewer: false },
-  { key: 'genReports',    label: 'Generate client reports',      admin: true, editor: true, viewer: false },
-  { key: 'manageUsers',   label: 'Manage users & permissions',   admin: true, editor: false, viewer: false },
+  { key: 'viewProjects',  label: 'View projects, WSL & reports', admin: true, manager: true, editor: true,  viewer: true },
+  { key: 'addProjects',   label: 'Add / edit projects',          admin: true, manager: true, editor: true,  viewer: false },
+  { key: 'editTasks',     label: 'Update agency tasks & submittals', admin: true, manager: true, editor: true, viewer: false },
+  { key: 'wslActions',    label: 'WSL extensions & re-applications', admin: true, manager: true, editor: true, viewer: false },
+  { key: 'genReports',    label: 'Generate client reports',      admin: true, manager: true, editor: true,  viewer: false },
+  { key: 'assignWork',    label: 'Assign work across the team',   admin: true, manager: true, editor: false, viewer: false },
+  { key: 'manageSetup',   label: 'Agency setup — agencies, cities, templates', admin: true, manager: true, editor: false, viewer: false },
+  { key: 'manageUsers',   label: 'Manage users & permissions',   admin: true, manager: false, editor: false, viewer: false },
 ];
-const can = (user, permKey) => { const p = PERMS.find(x => x.key === permKey); return p ? !!p[user.role === 'admin' ? 'admin' : user.role === 'editor' ? 'editor' : 'viewer'] : false; };
+// Unknown/legacy roles fall back to read-only rather than silently gaining access.
+const can = (user, permKey) => {
+  const p = PERMS.find(x => x.key === permKey);
+  if (!p || !user) return false;
+  return Object.prototype.hasOwnProperty.call(p, user.role) ? !!p[user.role] : !!p.viewer;
+};
 
 // persistence
 const LS_USERS = 'msa_app_users_v1';
@@ -45,10 +71,20 @@ function loadUsers() {
   try {
     const stored = JSON.parse(localStorage.getItem(LS_USERS));
     if (!stored) return SEED_USERS;
-    // migrate seed users to current roster (v2): replace old seed entries by id, keep admin-added users
+    // Bring an existing install up to the current roster without discarding invited
+    // users: refresh the seeded accounts in place, add any that are missing, and keep
+    // everyone else exactly as they are.
+    const seedIds = SEED_USERS.map(u => u.id);
     const oldNames = ['Jordan Reyes', 'Sam Kowalski', 'Mia Alvarez', 'Priya Holt'];
-    if (stored.some(u => oldNames.includes(u.name))) {
-      const extras = stored.filter(u => !['u1', 'u2', 'u3', 'u4'].includes(u.id));
+    const stale = stored.some(u => oldNames.includes(u.name))
+      || SEED_USERS.some(su => {
+        const cur = stored.find(u => u.id === su.id || u.email.toLowerCase() === su.email.toLowerCase());
+        return !cur || cur.role !== su.role || cur.title !== su.title;
+      });
+    if (stale) {
+      const extras = stored.filter(u => !seedIds.includes(u.id)
+        && !SEED_USERS.some(su => su.email.toLowerCase() === u.email.toLowerCase())
+        && !oldNames.includes(u.name));
       const next = [...SEED_USERS, ...extras];
       persistUsers(next);
       return next;
@@ -571,10 +607,18 @@ function backdropClose(onClose) {
 function deriveWsl(wsl) {
   if (!wsl) return null;
   const issued = parseDate(wsl.issued);
-  const originalExpiry = addYears(issued, 1);
+  // A year from issue, and a 6-month extension on top, are only the usual case. Agencies
+  // don't always follow it — and time is sometimes granted after the fact — so a date
+  // entered by hand always wins over the derived one.
+  const derivedExpiry = addYears(issued, 1);
+  const expiryManual = !!wsl.expires;
+  const originalExpiry = expiryManual ? parseDate(wsl.expires) : derivedExpiry;
   // the extension is usually 6 months but can be negotiated shorter or longer
   const extensionMonths = wsl.extensionMonths == null ? 6 : Number(wsl.extensionMonths);
-  const effectiveExpiry = wsl.extensionUsed ? addMonths(originalExpiry, extensionMonths) : originalExpiry;
+  const derivedExtensionExpiry = addMonths(originalExpiry, extensionMonths);
+  const extensionManual = !!wsl.extensionExpires;
+  const extensionExpiry = extensionManual ? parseDate(wsl.extensionExpires) : derivedExtensionExpiry;
+  const effectiveExpiry = wsl.extensionUsed ? extensionExpiry : originalExpiry;
   const daysLeft = daysBetween(TODAY, effectiveExpiry);
   let state;
   if (daysLeft < 0) state = 'expired';
@@ -587,7 +631,9 @@ function deriveWsl(wsl) {
   // An extension is worth chasing when time is short (or already gone) and the
   // single 6-month extension has not been used yet.
   const needsExtension = !wsl.extensionUsed && (state === 'warning' || state === 'critical' || state === 'expired');
-  return { ...wsl, issued, originalExpiry, effectiveExpiry, daysLeft, state, status, sent: true, needsExtension, extensionMonths };
+  return { ...wsl, issued, originalExpiry, effectiveExpiry, extensionExpiry, daysLeft, state, status,
+           sent: true, needsExtension, extensionMonths, expiryManual, extensionManual,
+           derivedExpiry, derivedExtensionExpiry };
 }
 
 const PHASE_META = {

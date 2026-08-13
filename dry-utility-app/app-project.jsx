@@ -141,14 +141,14 @@ function InfoFld({ label, value, onChange, ph, onEnter }) {
     </div>
   );
 }
-function InfoEditModal({ p, onClose, onSave, onDelete }) {
+function InfoEditModal({ p, users, onClose, onSave, onDelete }) {
   const cc = p.clientContact || {};
-  const [f, setF] = React.useState({ code: p.code, name: p.name, client: p.client, clientContact: cc.name || '', clientEmail: cc.email || '', clientPhone: cc.phone || '', street: p.location.street, city: p.location.city, state: p.location.state, zip: p.location.zip, utility: p.utility || '', apn: p.apn || '', mapRef: p.mapRef || '', acreage: p.acreage || '', contractDate: p.contractDate || '' });
+  const [f, setF] = React.useState({ code: p.code, name: p.name, client: p.client, clientContact: cc.name || '', clientEmail: cc.email || '', clientPhone: cc.phone || '', street: p.location.street, city: p.location.city, state: p.location.state, zip: p.location.zip, utility: p.utility || '', apn: p.apn || '', mapRef: p.mapRef || '', acreage: p.acreage || '', contractDate: p.contractDate || '', pm: p.pm || '' });
   const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
   const valid = f.code.trim() && f.name.trim() && f.client.trim();
   const save = () => {
     if (!valid) return;
-    onSave({ code: f.code.trim(), name: f.name.trim(), client: f.client.trim(), clientContact: { name: f.clientContact.trim(), email: f.clientEmail.trim(), phone: f.clientPhone.trim() }, utility: f.utility.trim(), apn: f.apn.trim(), mapRef: f.mapRef.trim(), acreage: f.acreage.trim(), contractDate: f.contractDate || null, location: { street: f.street.trim(), city: f.city.trim(), state: f.state.trim(), zip: f.zip.trim() } });
+    onSave({ code: f.code.trim(), name: f.name.trim(), client: f.client.trim(), clientContact: { name: f.clientContact.trim(), email: f.clientEmail.trim(), phone: f.clientPhone.trim() }, utility: f.utility.trim(), apn: f.apn.trim(), mapRef: f.mapRef.trim(), acreage: f.acreage.trim(), contractDate: f.contractDate || null, pm: f.pm || '', location: { street: f.street.trim(), city: f.city.trim(), state: f.state.trim(), zip: f.zip.trim() } });
   };
   const F = (k, label, ph) => <InfoFld label={label} ph={ph} value={f[k]} onChange={set(k)} onEnter={save} />;
   return (
@@ -163,8 +163,15 @@ function InfoEditModal({ p, onClose, onSave, onDelete }) {
             {F('code', 'Project number', 'e.g. 2913.001')}
             {F('name', 'Project name')}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0 10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.4fr 1fr', gap: '0 10px' }}>
             {F('client', 'Client')}
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>MSA project manager</label>
+              <select className="select" style={{ height: 32, fontSize: 12.5 }} value={f.pm} onChange={set('pm')}>
+                <option value="">Unassigned</option>
+                {(users || []).map(u => <option key={u.id} value={u.initials}>{u.name}</option>)}
+              </select>
+            </div>
             <div className="field" style={{ marginBottom: 10 }}>
               <label>Primary utility</label>
               <select className="select" style={{ height: 32, fontSize: 12.5 }} value={f.utility} onChange={set('utility')}>
@@ -731,7 +738,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
                 {canWrite ? (
                   <select className="select" style={{ width: 150, height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value || null)}>
                     <option value="">Unassigned</option>
-                    {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load}${load.cap ? '/' + load.cap : ''})` : ''}</option>; })}
+                    {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load} open)` : ''}</option>; })}
                   </select>
                 ) : u && <span className="meta">{u.name}</span>}
                 {canWrite ? (
@@ -831,7 +838,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
     p.tasks.forEach(t => { if (t.user && t.date) ev.push({ ts: t.date, kind: 'task', text: `${t.name} — ${SUB_META[t.status].label}`, tag: t.agency ? (AGENCIES[t.agency]?.short || t.agency) : 'Task' }); });
     if (wd) {
       ev.push({ ts: wd.issued.toISOString(), kind: 'wsl', text: 'Will Serve Letter issued by IID', tag: 'WSL' });
-      if (wd.extensionUsed) ev.push({ ts: wd.originalExpiry.toISOString(), kind: 'wsl', text: '6-month extension applied — final expiry set', tag: 'WSL' });
+      if (wd.extensionUsed) ev.push({ ts: wd.originalExpiry.toISOString(), kind: 'wsl', text: `${wd.extensionManual ? 'Extension' : wd.extensionMonths + '-month extension'} applied — final expiry set`, tag: 'WSL' });
     }
     if (p.sce?.earDate) ev.push({ ts: p.sce.earDate, kind: 'wsl', text: `SCE electrical review — ${p.sce.ear}`, tag: 'SCE' });
     if (p.reporting.lastSent) ev.push({ ts: p.reporting.lastSent, kind: 'report', text: `${p.reporting.cadence} client report sent`, tag: 'RPT' });
@@ -863,15 +870,41 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
   const [editIssued, setEditIssued] = React.useState('');
   const [editExt, setEditExt] = React.useState(false);
   const [editExtMonths, setEditExtMonths] = React.useState(6);
+  // Expiry and extension dates are normally derived, but agencies don't always follow
+  // the 1-year / 6-month rule and sometimes grant time after the fact — so both can be
+  // overridden by hand. Empty means "use the derived date".
+  const [editExpires, setEditExpires] = React.useState('');
+  const [editExtExpires, setEditExtExpires] = React.useState('');
+  const iso = (d) => d ? parseDate(d).toISOString().slice(0, 10) : '';
   const startWslEdit = () => {
     setEditIssued(wd ? wd.issued.toISOString().slice(0, 10) : TODAY.toISOString().slice(0, 10));
     setEditExt(wd ? !!wd.extensionUsed : false);
     setEditExtMonths(wd && wd.extensionMonths != null ? wd.extensionMonths : 6);
+    setEditExpires(wd && wd.expiryManual ? iso(wd.originalExpiry) : '');
+    setEditExtExpires(wd && wd.extensionManual ? iso(wd.extensionExpiry) : '');
     setWslEditing(true);
   };
+  // what the dates will be once saved — derived unless overridden
+  const previewWsl = React.useMemo(() => {
+    if (!editIssued) return null;
+    return deriveWsl({
+      issued: editIssued,
+      extensionUsed: editExt,
+      extensionMonths: Number(editExtMonths) || 6,
+      expires: editExpires || undefined,
+      extensionExpires: editExtExpires || undefined,
+    });
+  }, [editIssued, editExt, editExtMonths, editExpires, editExtExpires]);
   const saveWslEdit = () => {
     if (!editIssued) return;
-    onWslEdit(p.id, { issued: editIssued, extensionUsed: editExt, extensionMonths: Number(editExtMonths) || 6 });
+    onWslEdit(p.id, {
+      issued: editIssued,
+      extensionUsed: editExt,
+      extensionMonths: Number(editExtMonths) || 6,
+      // only store overrides that were actually entered
+      expires: editExpires || undefined,
+      extensionExpires: editExtExpires || undefined,
+    });
     setWslEditing(false);
   };
 
@@ -905,6 +938,9 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
             </span>
             {p.clientContact && p.clientContact.email && <a href={`mailto:${p.clientContact.email}`} style={{ textDecoration: 'none', fontSize: 12 }} title="Client contact email">{p.clientContact.email}</a>}
             {p.clientContact && p.clientContact.phone && <span className="mono" style={{ fontSize: 12 }} title="Client contact phone">{p.clientContact.phone}</span>}
+            <span title="MSA project manager" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <ProjIcon name="user" size={12} />PM: {(users || []).find(u => u.initials === p.pm)?.name || (p.pm && p.pm !== '—' ? p.pm : 'Unassigned')}
+            </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ProjIcon name="pin" size={12} />{p.location.street}, {p.location.city}, {p.location.state} {p.location.zip}</span>
             <span className={`util-tag util-${(p.utility || '').toLowerCase() === 'sce' ? 'sce' : 'iid'}`}>{p.utility}</span>
             {p.apn && <span className="mono" title="Assessor's Parcel Number">APN {p.apn}</span>}
@@ -921,7 +957,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
       </div>
 
       <LetterGenModal p={p} open={letterGenOpen} onClose={() => setLetterGenOpen(false)} currentUser={currentUser} />
-      {infoEditOpen && <InfoEditModal p={p} onClose={() => setInfoEditOpen(false)} onSave={(patch) => { onInfoUpdate(p.id, patch); setInfoEditOpen(false); }} onDelete={onProjectDelete ? () => { if (window.confirm(`Delete “${p.name}” (${p.code})? This removes it from all views — tasks, notes, and research history included. This cannot be undone.`)) onProjectDelete(p.id); } : null} />}
+      {infoEditOpen && <InfoEditModal p={p} users={users} onClose={() => setInfoEditOpen(false)} onSave={(patch) => { onInfoUpdate(p.id, patch); setInfoEditOpen(false); }} onDelete={onProjectDelete ? () => { if (window.confirm(`Delete “${p.name}” (${p.code})? This removes it from all views — tasks, notes, and research history included. This cannot be undone.`)) onProjectDelete(p.id); } : null} />}
 
       <ProjTimeline p={p} modules={modules} />
 
@@ -1048,16 +1084,34 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                     <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={editIssued} onChange={e => setEditIssued(e.target.value)} />
                   </div>
                   <div className="field" style={{ marginBottom: 10 }}>
+                    <label>Expiration date <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>— leave blank for 1 year from issue</span></label>
+                    <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={editExpires}
+                      placeholder={previewWsl ? iso(previewWsl.derivedExpiry) : ''}
+                      onChange={e => setEditExpires(e.target.value)} />
+                    {!editExpires && previewWsl && (
+                      <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 3 }}>Using {fmt(previewWsl.derivedExpiry)}</div>
+                    )}
+                  </div>
+                  <div className="field" style={{ marginBottom: 10 }}>
                     <label>Extension length <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>— months, usually 6</span></label>
                     <input type="number" min="1" max="36" className="input" style={{ height: 32, fontSize: 12.5 }} value={editExtMonths} onChange={e => setEditExtMonths(e.target.value)} />
                   </div>
+                  <div className="field" style={{ marginBottom: 10 }}>
+                    <label>Extension date <span style={{ fontWeight: 400, color: 'var(--ink-4)' }}>— leave blank to add the months above</span></label>
+                    <input type="date" className="input" style={{ height: 32, fontSize: 12.5 }} value={editExtExpires}
+                      onChange={e => setEditExtExpires(e.target.value)} />
+                    {!editExtExpires && previewWsl && (
+                      <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 3 }}>Using {fmt(previewWsl.derivedExtensionExpiry)}</div>
+                    )}
+                  </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 12, cursor: 'pointer' }}>
                     <input type="checkbox" checked={editExt} onChange={e => setEditExt(e.target.checked)} style={{ accentColor: 'var(--primary)' }} />
-                    {(Number(editExtMonths) || 6)}-month extension already used
+                    Extension already granted
                   </label>
-                  {editIssued && (
+                  {previewWsl && (
                     <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginBottom: 12 }}>
-                      Effective expiry: <b className="mono" style={{ color: 'var(--ink)' }}>{fmt(addMonths(addYears(new Date(editIssued + 'T00:00:00'), 1), editExt ? (Number(editExtMonths) || 6) : 0))}</b>
+                      Effective expiry: <b className="mono" style={{ color: 'var(--ink)' }}>{fmt(previewWsl.effectiveExpiry)}</b>
+                      {(editExpires || (editExt && editExtExpires)) && <span className="badge b-amber" style={{ marginLeft: 7, fontSize: 9.5 }}>entered by hand</span>}
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1089,7 +1143,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   <div style={{ marginTop: 12 }}>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Issued</span><span className="mono">{fmt(wd.issued)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Original expiry</span><span className="mono">{fmt(wd.originalExpiry)}</span></div>
-                    <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Extension</span><span>{wd.extensionUsed ? `Used (${wd.extensionMonths} mo)` : `Available (1× ${wd.extensionMonths} mo)`}</span></div>
+                    <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Extension</span><span>{wd.extensionUsed ? (wd.extensionManual ? `Granted to ${fmt(wd.extensionExpiry)}` : `Used (${wd.extensionMonths} mo)`) : (wd.extensionManual ? `Available to ${fmt(wd.extensionExpiry)}` : `Available (1× ${wd.extensionMonths} mo)`)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Effective expiry</span><span className="mono" style={{ color: fill }}>{fmt(wd.effectiveExpiry)}</span></div>
                   </div>
                   {wd.state === 'critical' && wd.extensionUsed && (
@@ -1101,7 +1155,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   {(wd.state === 'critical' || wd.state === 'warning') && !wd.extensionUsed && (
                     <div className="callout warn" style={{ marginTop: 12 }}>
                       <ProjIcon name="clock" size={16} />
-                      <div><b>Extension available.</b> One {wd.extensionMonths}-month extension can move expiry to {fmt(addMonths(wd.originalExpiry, wd.extensionMonths))}.</div>
+                      <div><b>Extension available.</b> {wd.extensionManual ? 'An extension date has been entered' : `One ${wd.extensionMonths}-month extension`} can move expiry to {fmt(wd.extensionExpiry)}.</div>
                     </div>
                   )}
                   <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
