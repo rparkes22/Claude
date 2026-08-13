@@ -988,7 +988,7 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
 // the client was told, so it is never regenerated — only re-displayed.
 function ReportHistory({ history, viewing, onView, onBack, onDelete }) {
   return (
-    <div className="panel" style={{ marginTop: 16 }}>
+    <div className="panel no-print" style={{ marginTop: 16 }}>
       <div className="panel-hd">
         <h2>Report record</h2>
         <span className="meta">{history.length} filed{viewing ? ' · viewing an archived copy' : ''}</span>

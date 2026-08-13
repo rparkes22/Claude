@@ -1,7 +1,11 @@
 // Blueprint — shared data, auth store, agency/task catalogs.
 // Exposed on window for the other Babel scripts.
 
-const TODAY = new Date('2026-07-13T00:00:00');
+// The app's "now". Real wall-clock date, floored to local midnight so every
+// day-count is whole days and the dashboard calendar opens on the current month.
+// (It was pinned to a fixed date while the seed data was being written, which left
+// the calendar stuck on that month no matter when the app was opened.)
+const TODAY = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
 
 // Parse date-only strings (YYYY-MM-DD) as LOCAL midnight, not UTC — avoids off-by-one
 // display in negative-UTC-offset locales (e.g. US Pacific).
@@ -347,7 +351,33 @@ const tasksForAgency = (aid) => {
 };
 
 // ===== PROJECTS (progress/pct intentionally removed) =====
-const SEED_PROJECTS = [
+// The demo corpus below is written against a fixed anchor date so its internal
+// relationships (letter sent -> response, WSL issued -> expiry, report cadence)
+// stay exactly as authored. It is then slid forward to the present at load time,
+// so the sample projects never age out from under the dashboard — otherwise the
+// deadline calendar opens on the current month and finds nothing in it.
+// The slide is a whole number of weeks, so a deadline authored on a Tuesday is
+// still a Tuesday and the weekday-only calendar grid keeps its shape.
+const SEED_ANCHOR = '2026-07-13';
+const SEED_SLIDE = Math.round(daysBetween(SEED_ANCHOR, TODAY) / 7) * 7;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const slideDate = (s) => {
+  const d = addDays(s, SEED_SLIDE);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const slideSeed = (v) => {
+  if (typeof v === 'string') return ISO_DATE.test(v) ? slideDate(v) : v;
+  if (Array.isArray(v)) return v.map(slideSeed);
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const k of Object.keys(v)) out[k] = slideSeed(v[k]);
+    return out;
+  }
+  return v;
+};
+
+const SEED_PROJECTS_RAW = [
   {
     id: 'p9', code: '2913.001', name: 'Avenue 40 & Jefferson', client: 'RFP 3102',
     location: { street: 'NEC Avenue 40 & Jefferson St', city: 'Indio', state: 'CA', zip: '92203' },
@@ -563,6 +593,7 @@ const SEED_PROJECTS = [
     reporting: { cadence: 'Weekly', lastSent: '2026-07-09', changes: 2 },
   },
 ];
+const SEED_PROJECTS = SEED_SLIDE ? slideSeed(SEED_PROJECTS_RAW) : SEED_PROJECTS_RAW;
 
 // WSL derivation
 // ---- IID Capacity Study Submittal ----

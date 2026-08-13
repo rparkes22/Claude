@@ -40,6 +40,13 @@ Sign in with one of the demo users on the login screen.
 Calendar arithmetic clamps to the end of the target month rather than rolling over, so a
 letter issued 31 Aug runs to 28 Feb — not 3 Mar — and 29 Feb + 1 year is 28 Feb.
 
+"Today" is the real wall-clock date, floored to local midnight, so the dashboard's
+deadline calendar opens on the current month. The sample projects are authored against a
+fixed anchor date to keep their internal timing exact, then slid forward to the present
+by a whole number of weeks at load — the demo data never ages out from under the calendar,
+and a deadline written for a Tuesday is still a Tuesday. Only the seed baseline moves;
+anything entered or edited in the app is real data and stays where it was put.
+
 Work a client had done before the project reached us can be marked complete during
 project creation — Utility Research and the Existing Utility Plan are then recorded as
 finished rather than started from scratch.
@@ -63,9 +70,13 @@ off the gap between the busiest and lightest person (3 tasks or more), not a lim
 ## Client reports
 
 Reports are laid out on the letterhead and paginate without splitting a section, table row
-or card across a page break. **Issue & file** stores the report exactly as it reads that
-day; printing files it too. The record is per project, newest first, and each entry is a
-frozen snapshot — a report that has gone to a client never changes as the project moves on.
+or card across a page break, with a 1in text inset on every page (`.msa-doc-body`, which
+has to out-specify the `.msa-doc > tbody > tr > td` padding reset or the report prints
+edge to edge). **Issue & file** stores the report exactly as it reads that day; printing
+files it too. The record is per project, newest first, and each entry is a frozen
+snapshot — a report that has gone to a client never changes as the project moves on. The
+record panel is screen-only (`.no-print`); left printable it came out as a stray
+full-bleed final page outside the letterhead.
 
 ## Agency Setup (admin)
 

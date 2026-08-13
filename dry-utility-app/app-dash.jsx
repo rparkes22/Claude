@@ -90,21 +90,22 @@ function DeadlineCalendar({ projects, onOpenProject }) {
               <div key={d}
                 onMouseEnter={() => setHoverDay(d)} onMouseLeave={() => setHoverDay(null)}
                 style={{
-                  minHeight: 58, border: '1px solid ' + (isToday(d) ? 'var(--primary)' : 'var(--border)'),
+                  minHeight: 82, border: '1px solid ' + (isToday(d) ? 'var(--primary)' : 'var(--border)'),
                   borderRadius: 7, padding: '4px 6px', position: 'relative',
                   background: isToday(d) ? 'var(--primary-tint)' : evs.length ? 'var(--surface)' : 'var(--surface)',
                   boxShadow: isToday(d) ? '0 0 0 1px var(--primary)' : 'none',
                 }}>
                 <div style={{ fontSize: 10.5, fontFamily: 'Geist Mono, monospace', color: isToday(d) ? 'var(--primary)' : 'var(--ink-4)', fontWeight: isToday(d) ? 700 : 500 }}>{d}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                  {evs.slice(0, 2).map((ev, ei) => (
+                  {/* taller cells fit a third entry before the "+n more" roll-up */}
+                  {evs.slice(0, 3).map((ev, ei) => (
                     <button key={ei} onClick={() => onOpenProject(ev.pid)} title={ev.label}
                       style={{ display: 'flex', alignItems: 'center', gap: 4, border: 0, background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: 'inherit', minWidth: 0, width: '100%' }}>
                       <span style={{ width: 6, height: 6, borderRadius: ev.kind === 'milestone' ? 1 : (ev.kind === 'report' || ev.kind === 'task') ? 2 : '50%', background: sevColor[ev.sev], flexShrink: 0, transform: ev.kind === 'milestone' ? 'rotate(45deg)' : 'none' }}></span>
                       <span style={{ fontSize: 9.5, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{ev.label.split(' — ')[1] || ev.label}</span>
                     </button>
                   ))}
-                  {evs.length > 2 && <span style={{ fontSize: 9, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>+{evs.length - 2} more</span>}
+                  {evs.length > 3 && <span style={{ fontSize: 9, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>+{evs.length - 3} more</span>}
                 </div>
                 {hoverDay === d && evs.length > 0 && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 30, width: 240, background: 'var(--ink)', color: 'white', borderRadius: 8, padding: '8px 10px', boxShadow: 'var(--shadow-lg)', marginTop: 2 }}>

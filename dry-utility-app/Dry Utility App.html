@@ -355,7 +355,10 @@
   .empty h3 { color: var(--ink); margin: 0 0 6px; font-size: 15px; }
 
   @media print {
-    .sidenav, .topbar, .toolbar, .kpis, .toast { display: none !important; }
+    /* .no-print is for on-screen companions to a printable sheet — the report record
+       panel sits below the report and would otherwise print as a stray final page,
+       full-bleed, outside the letterhead's padded body cell. */
+    .sidenav, .topbar, .toolbar, .kpis, .toast, .no-print { display: none !important; }
     .shell { grid-template-columns: 1fr; }
     body { background: white; }
     .sheet { border: 0; box-shadow: none; width: 100%; padding: 0; }
@@ -444,7 +447,9 @@
    rides in normal flow so it appears once, on page 1. */
 .msa-doc{width:100%;border-collapse:collapse}
 .msa-doc>tfoot>tr>td,.msa-doc>tbody>tr>td{padding:0;border:0;text-align:left;vertical-align:top}
-.msa-doc-body{padding:3.3% 10.6% 2.4%}  /* 10.6% = 0.9in side margin on an 8.5in page */
+/* Must out-specify the `.msa-doc>tbody>tr>td{padding:0}` reset above, or the report
+   prints edge to edge with no side margins at all. 11.8% = 1in on an 8.5in page. */
+.msa-doc>tbody>tr>td.msa-doc-body{padding:3.3% 11.8% 2.4%}
 
 /* research letter sheets */
 .letter-sheet{width:7.2in;height:9.32in;background:#fff;border:1px solid var(--border);box-shadow:0 2px 12px rgba(0,0,0,0.07);padding:0;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;font-size:12.5px;line-height:1.55;color:#1a1a1a}
