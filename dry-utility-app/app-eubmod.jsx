@@ -34,7 +34,11 @@ function EubModule({ p, canWrite }) {
   });
   const plottable = sources.filter(s => !s.none);
   const plotted = plottable.filter(s => s.plot === 'done').length;
-  const researchDone = rows.length > 0 && rows.every(r => r.received || r.noResponse);
+  // Research counts as done when every letter is resolved, or when the research module was
+  // recorded complete by hand — there is nothing left to wait on either way.
+  const isDone = (id) => typeof moduleIsDone === 'function' && moduleIsDone(p, id);
+  const researchDone = isDone('research') || (rows.length > 0 && rows.every(r => r.received || r.noResponse));
+  const planDone = isDone('eub');
 
   const setPlot = (r, val) => { if (!canWrite) return; save({ ...st, plots: { ...st.plots, [r.id]: val } }); };
   const setStage = (i) => {
@@ -51,7 +55,13 @@ function EubModule({ p, canWrite }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink-3)' }}><span style={{ width: 18, height: 18, fontSize: 8.5, borderRadius: '50%', background: 'var(--primary-tint)', color: 'var(--primary)', display: 'inline-grid', placeItems: 'center', fontWeight: 700 }}>MS</span>Michael Schreiber</span>
         </div>
       </div>
-      {!researchDone && (
+      {planDone && (
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--ok-tint, rgba(22,163,74,0.07))', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ProjIcon name="check" size={13} />
+          <span><b>Existing Utility Plan complete</b>{st.issued ? ` — issued ${fmtShort(st.issued)}` : ''}. Reopen it from the Modules panel if the plan goes back out.</span>
+        </div>
+      )}
+      {!researchDone && !planDone && (
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--amber-tint)', fontSize: 12, color: 'var(--amber-ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ProjIcon name="clock" size={13} />
           <span><b>Utility Research still in progress</b> — {rows.filter(r => !r.received && !r.noResponse).length} response{rows.filter(r => !r.received && !r.noResponse).length === 1 ? '' : 's'} outstanding. Facilities can be plotted as responses arrive.</span>
@@ -105,4 +115,4 @@ function EubModule({ p, canWrite }) {
   );
 }
 
-Object.assign(window, { EubModule, eubLoad, EUB_STAGES });
+Object.assign(window, { EubModule, eubLoad, eubPersist, EUB_STAGES });

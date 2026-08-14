@@ -47,9 +47,26 @@ by a whole number of weeks at load — the demo data never ages out from under t
 and a deadline written for a Tuesday is still a Tuesday. Only the seed baseline moves;
 anything entered or edited in the app is real data and stays where it was put.
 
-Work a client had done before the project reached us can be marked complete during
-project creation — Utility Research and the Existing Utility Plan are then recorded as
-finished rather than started from scratch.
+## Marking a module complete
+
+Any module on any project can be recorded as finished — at creation, for work a client had
+done before the job reached us, or later from the project's **Modules** panel when a
+deliverable closes out away from the app. Both routes are read through one flag, so a
+module ticked at setup and one closed out afterwards behave identically.
+
+**Mark complete** asks for the date it was actually finished, not today's — the work is
+usually older than the record of it. A completed module reads as complete on the project
+timeline and in its own panel, and stops chasing: Utility Research no longer counts
+outstanding letters, and the Existing Utility Plan stops flagging research as in progress.
+Completing the plan also moves its stage stepper to **Issued** on that date, so the module
+page and the Modules panel never disagree.
+
+**Reopen** undoes it, putting the plan's stepper back at the stage it was on rather than
+guessing. Reopening works on modules ticked at setup too — the project record itself says
+they are complete, so a reopen writes a tombstone over it.
+
+Marking a module complete never destroys its log. Research letters, plot statuses and
+hand-off items all stay exactly as they were and come back on reopen.
 
 ## People, roles & workload
 

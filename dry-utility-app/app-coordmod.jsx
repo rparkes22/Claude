@@ -468,7 +468,10 @@ function CoordModule({ p, canWrite, currentUser, users }) {
       <div className="panel-hd">
         <h2>Utility coordination <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— hand-off tracking</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {staleCount > 0 && <span className="badge b-amber"><span className="badge-dot"></span>{staleCount} stale</span>}
+          {/* closed out from the Modules panel — say so here rather than keep flagging stale items */}
+          {typeof moduleIsDone === 'function' && moduleIsDone(p, 'coordination')
+            ? <span className="badge b-ok"><span className="badge-dot"></span>complete</span>
+            : staleCount > 0 && <span className="badge b-amber"><span className="badge-dot"></span>{staleCount} stale</span>}
           <span className="meta">{openItems.length} open · {items.filter(i => i.closed).length} complete</span>
           {tracks && canWrite && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} title="Change which tracks are enabled" onClick={() => setEditTracks(true)}>Tracks…</button>}
           <div className="lens" style={{ padding: 2 }}>

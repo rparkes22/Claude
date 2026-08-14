@@ -353,7 +353,8 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
     return { ...r, sent: v.sent || r.sent, received: v.received || null, noResponse: !!v.noResponse };
   });
   const resolved = (r) => !!(r.received || r.noResponse);
-  const priorResearch = !!(p.preComplete && p.preComplete.research);
+  // marked finished — at setup, or closed out later from the Modules panel
+  const priorResearch = moduleIsDone(p, 'research');
   const done = rows.filter(resolved).length;
   const receivedCount = rows.filter(r => r.received).length;
   const noRespCount = rows.filter(r => r.noResponse && !r.received).length;
@@ -371,7 +372,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
   const eubExists = p.tasks.some(t => /existing utility (base|plan)/i.test(t.name));
   React.useEffect(() => {
     if (!researchComplete || !canWrite || !onTaskAdd || eubExists) return;
-    if (p.preComplete && p.preComplete.eub) return; // already issued before we started
+    if (moduleIsDone(p, 'eub')) return; // the plan is already recorded as issued
     let created = {}; try { created = JSON.parse(localStorage.getItem(EUB_KEY)) || {}; } catch (e) {}
     if (created[p.id]) return; // was created before (may have been deleted on purpose)
     onTaskAdd(p.id, { agency: null, taskId: 'eub-' + Date.now(), name: 'Existing Utility Plan', status: 'none', date: null, assignee: 'u1' });
@@ -416,8 +417,10 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--ok-tint, rgba(22,163,74,0.07))', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, flexWrap: 'wrap' }}>
           <ProjIcon name="check" size={13} />
           <span>{priorResearch && rows.length === 0
-            ? <><b>Utility Research already complete</b> — carried over from work done before this project was set up.</>
-            : <><b>Utility Research complete</b> — {receivedCount} of {rows.length} response{rows.length === 1 ? '' : 's'} received{noRespCount ? `, ${noRespCount} closed as no response` : ''}.</>}</span>
+            ? <><b>Utility Research already complete</b> — recorded as finished rather than run from here.</>
+            : priorResearch && done < rows.length
+              ? <><b>Utility Research marked complete</b> — {rows.length - done} letter{rows.length - done === 1 ? '' : 's'} still unanswered here; the module was closed out by hand.</>
+              : <><b>Utility Research complete</b> — {receivedCount} of {rows.length} response{rows.length === 1 ? '' : 's'} received{noRespCount ? `, ${noRespCount} closed as no response` : ''}.</>}</span>
           <span style={{ color: 'var(--ink-3)' }}>{eubExists ? 'Next task “Existing Utility Plan” is on the task list — assigned to Michael Schreiber.' : canWrite ? 'Creating “Existing Utility Plan” task for Michael Schreiber…' : 'Next step: Existing Utility Plan (Michael Schreiber).'}</span>
         </div>
       )}
@@ -433,7 +436,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
       </div>
       {rows.length === 0 ? (
         <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>{priorResearch
-          ? <>Marked complete at project setup — no letters were sent from here. {canWrite ? 'Use “Generate letters” if any further research is needed.' : ''}</>
+          ? <>Recorded as complete — no letters were sent from here. {canWrite ? 'Use “Generate letters” if any further research is needed.' : ''}</>
           : <>No research letters sent yet. {canWrite ? 'Use “Generate letters” to send the standard request to every agency serving this region — the log of who they went to, when, and responses builds here.' : ''}</>}</div>
       ) : (
       <React.Fragment>
@@ -544,29 +547,76 @@ function getProjectModules(p) {
   };
   return { ...defaults, ...(loadModuleOv()[p.id] || {}) };
 }
+// A module can be recorded as finished at any point in a project's life — work the client
+// had done before the job reached us, or a deliverable that closed out away from the app.
+// This flag is what the timeline and the module bodies read, so a finished module stops
+// chasing responses instead of showing outstanding work forever.
+const MODULE_DONE_KEY = 'msa_app_module_done_v1';
+function loadModuleDone() { try { return JSON.parse(localStorage.getItem(MODULE_DONE_KEY)) || {}; } catch (e) { return {}; } }
+function persistModuleDone(d) { try { localStorage.setItem(MODULE_DONE_KEY, JSON.stringify(d)); } catch (e) {} window.dispatchEvent(new Event('msa-modules-updated')); }
+// The wizard's `preComplete` booleans are read as completions with no date, so the two
+// routes to "already done" — ticked at setup, or marked later — land in one shape. A
+// null entry is a tombstone: it reopens a module that was ticked at setup.
+function getModuleDone(p) {
+  const pre = (p && p.preComplete) || {};
+  const out = {};
+  if (pre.research) out.research = { date: null, atSetup: true };
+  if (pre.eub) out.eub = { date: null, atSetup: true };
+  Object.assign(out, (loadModuleDone()[p.id] || {}));
+  Object.keys(out).forEach(k => { if (!out[k]) delete out[k]; });
+  return out;
+}
+const moduleIsDone = (p, id) => !!getModuleDone(p)[id];
 const MODULE_DEFS = [
   { id: 'research', name: 'Utility Research', desc: 'Standardized letters to every agency in the project region to verify jurisdiction — sent log, responses, and jurisdiction summary. Typically 6–8 weeks from contract execution; completion creates the Existing Utility Plan task.' },
   { id: 'eub', name: 'Existing Utility Plan', desc: 'Plot each agency\u2019s research response onto the project base map — per-utility plot log and deliverable stage through QC to issue. Michael Schreiber.' },
   { id: 'coordination', name: 'Utility Coordination', desc: 'Hand-off tracking between agencies, engineering, and the client — enable only the tracks the project needs: SCE Rule 15 / Rule 16, Gas Co backbone / meters, Frontier, Spectrum.' },
 ];
-function ModulesPanel({ p, modules, canWrite, onToggle }) {
+function ModulesPanel({ p, modules, done, canWrite, onToggle, onComplete, onReopen }) {
+  const [marking, setMarking] = React.useState(null); // module id being closed out
+  const [when, setWhen] = React.useState('');
+  const startMark = (id) => { setWhen(TODAY.toISOString().slice(0, 10)); setMarking(id); };
+  const nDone = MODULE_DEFS.filter(m => modules[m.id] && done[m.id]).length;
+  const nOn = MODULE_DEFS.filter(m => modules[m.id]).length;
   return (
     <div className="panel">
-      <div className="panel-hd"><h2>Modules</h2><span className="meta">{MODULE_DEFS.filter(m => modules[m.id]).length} active</span></div>
+      <div className="panel-hd">
+        <h2>Modules</h2>
+        <span className="meta">{nOn} active{nDone ? ` · ${nDone} complete` : ''}</span>
+      </div>
       <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {MODULE_DEFS.map(m => {
           const on = modules[m.id];
+          const fin = on ? done[m.id] : null;
           return (
-            <div key={m.id} style={{ border: on ? '1px solid var(--primary)' : '1px dashed var(--border-strong)', background: on ? 'var(--primary-tint)' : 'var(--surface-2)', borderRadius: 10, padding: '10px 12px' }}>
+            <div key={m.id} className="mod-card" data-module={m.id} style={{ border: fin ? '1px solid var(--ok)' : on ? '1px solid var(--primary)' : '1px dashed var(--border-strong)', background: fin ? 'var(--ok-tint, rgba(22,163,74,0.07))' : on ? 'var(--primary-tint)' : 'var(--surface-2)', borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink)', flex: 1 }}>{m.name}</span>
-                {on && <span className="badge b-ok" style={{ fontSize: 9.5 }}><span className="badge-dot"></span>active</span>}
+                {fin
+                  ? <span className="badge b-ok" style={{ fontSize: 9.5 }}><span className="badge-dot"></span>complete</span>
+                  : on && <span className="badge b-blue" style={{ fontSize: 9.5 }}><span className="badge-dot"></span>active</span>}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--ink-3)', margin: '4px 0 8px', lineHeight: 1.45 }}>{m.desc}</div>
+              {fin && (
+                <div style={{ fontSize: 11.5, color: 'var(--ok)', fontWeight: 600, marginBottom: 8 }}>
+                  {fin.date ? `Completed ${fmtShort(fin.date)}` : 'Completed before this project was set up'}
+                </div>
+              )}
+              {canWrite && marking === m.id && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: 'var(--ink-3)' }}>Completed</label>
+                  <input className="input" type="date" style={{ height: 26, fontSize: 11.5, width: 138 }} value={when} onChange={e => setWhen(e.target.value)} />
+                  <button className="btn btn-primary btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => { onComplete(m.id, when); setMarking(null); }}>Save</button>
+                  <button className="btn btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => setMarking(null)}>Cancel</button>
+                </div>
+              )}
               {canWrite && (
-                on
-                  ? <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => { if (window.confirm(`Remove the ${m.name} module from this project? Its log stays saved and comes back if you re-add it.`)) onToggle(m.id, false); }}>Remove module</button>
-                  : <button className="btn btn-primary btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => onToggle(m.id, true)}>+ Add to project</button>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {!on && <button className="btn btn-primary btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => onToggle(m.id, true)}>+ Add to project</button>}
+                  {on && !fin && marking !== m.id && <button className="btn btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => startMark(m.id)}><ProjIcon name="check" size={11} />Mark complete</button>}
+                  {on && fin && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => onReopen(m.id)}>Reopen</button>}
+                  {on && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => { if (window.confirm(`Remove the ${m.name} module from this project? Its log stays saved and comes back if you re-add it.`)) onToggle(m.id, false); }}>Remove module</button>}
+                </div>
               )}
             </div>
           );
@@ -579,7 +629,9 @@ function ModulesPanel({ p, modules, canWrite, onToggle }) {
 // ---- project tasks panel (user tasks, incl. auto-created follow-ons like Existing Utility Plan) ----
 // ---- project timeline: contract → research (6–8 wks) → existing utility base → coordination → complete ----
 function ProjTimeline({ p, modules }) {
-  const priorDone = p.preComplete || {};
+  // modules marked finished — at setup, or closed out later from the Modules panel
+  const priorDone = getModuleDone(p);
+  const doneSub = (id, fallback) => priorDone[id].date ? `complete ${fmtShort(priorDone[id].date)}` : fallback;
   const rows = getResearchRows(p);
   const firstSent = rows.length ? rows.reduce((m, r) => r.sent < m ? r.sent : m, rows[0].sent) : null;
   const lastRecv = rows.length && rows.every(r => r.received) ? rows.reduce((m, r) => r.received > m ? r.received : m, rows[0].received) : null;
@@ -593,9 +645,9 @@ function ProjTimeline({ p, modules }) {
   const wd = deriveWsl(p.wsl);
   const stages = [
     { lab: 'Contract executed', state: 'done', sub: contractD ? fmtShort(contractD) : firstSent ? `letters out ${fmtShort(firstSent)}` : 'date not set' },
-    modules.research !== false && { lab: 'Utility Research', state: priorDone.research || lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: priorDone.research && !lastRecv ? 'complete before setup' : lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !priorDone.research && !lastRecv && firstSent && resWeeks > 8 },
-    { lab: 'Existing Utility Plan', state: priorDone.eub || eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: priorDone.eub && !eubIssued ? 'complete before setup' : eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
-    modules.coordination && { lab: 'Utility Coordination', state: cm.length ? (cmOpen ? 'active' : 'done') : 'todo', sub: cm.length ? `${cmOpen} open · ${cm.length - cmOpen} closed` : 'not started' },
+    modules.research !== false && { lab: 'Utility Research', state: priorDone.research || lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: priorDone.research && !lastRecv ? doneSub('research', 'complete before setup') : lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !priorDone.research && !lastRecv && firstSent && resWeeks > 8 },
+    { lab: 'Existing Utility Plan', state: priorDone.eub || eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: priorDone.eub && !eubIssued ? doneSub('eub', 'complete before setup') : eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
+    modules.coordination && { lab: 'Utility Coordination', state: priorDone.coordination || (cm.length && !cmOpen) ? 'done' : cm.length ? 'active' : 'todo', sub: priorDone.coordination ? doneSub('coordination', 'complete') : cm.length ? `${cmOpen} open · ${cm.length - cmOpen} closed` : 'not started' },
     wd && { lab: 'Will Serve', state: wd.state === 'expired' ? 'late' : wd.state === 'ok' ? 'done' : 'active', sub: wd.state === 'expired' ? 'expired' : `${wd.daysLeft}d left`, late: wd.state === 'expired' || wd.state === 'critical' },
     { lab: 'Complete', state: p.phase === 'Complete' ? 'done' : 'todo', sub: p.phase === 'Complete' ? (p.completedOn ? fmtShort(p.completedOn) : 'archived') : p.phase },
   ].filter(Boolean);
@@ -860,6 +912,35 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
     persistModuleOv({ ...ov, [p.id]: { ...(ov[p.id] || {}), [id]: on } });
     bumpModules();
   };
+  const moduleDone = React.useMemo(() => getModuleDone(p), [p, moduleRev]);
+  const completeModule = (id, date) => {
+    const day = date || TODAY.toISOString().slice(0, 10);
+    const entry = { date: day, by: currentUser ? currentUser.initials : null };
+    // The plan module carries its own stage stepper — drive it too, so the module page and
+    // the modules panel never disagree about whether the plan is out. Remember the stage it
+    // was at so reopening puts it back where it was rather than guessing.
+    if (id === 'eub' && typeof eubLoad === 'function') {
+      const all = eubLoad();
+      const st = all[p.id] || { stage: 0, plots: {}, issued: null };
+      entry.prevStage = st.stage;
+      eubPersist({ ...all, [p.id]: { ...st, stage: EUB_STAGES.length - 1, issued: day } });
+    }
+    const done = loadModuleDone();
+    persistModuleDone({ ...done, [p.id]: { ...(done[p.id] || {}), [id]: entry } });
+    bumpModules();
+  };
+  const reopenModule = (id) => {
+    const done = loadModuleDone();
+    const entry = (done[p.id] || {})[id] || {};
+    if (id === 'eub' && entry.prevStage != null && typeof eubLoad === 'function') {
+      const all = eubLoad();
+      if (all[p.id]) eubPersist({ ...all, [p.id]: { ...all[p.id], stage: entry.prevStage, issued: null } });
+    }
+    // null rather than delete: a module ticked complete during setup lives on the project
+    // record itself, so it needs a tombstone to stay reopened.
+    persistModuleDone({ ...done, [p.id]: { ...(done[p.id] || {}), [id]: null } });
+    bumpModules();
+  };
 
   const fill = !wd ? null : (wd.state === 'expired' || wd.state === 'critical') ? 'var(--warn)' : wd.state === 'warning' ? 'var(--amber)' : 'var(--ok)';
   const todayPos = wd ? Math.max(0, Math.min(100, ((TODAY - wd.issued) / (wd.effectiveExpiry - wd.issued)) * 100)) : 0;
@@ -964,7 +1045,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 330px', gap: 16, alignItems: 'start' }}>
         {/* left: modules + DD */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-          <ModulesPanel p={p} modules={modules} canWrite={canWrite} onToggle={toggleModule} />
+          <ModulesPanel p={p} modules={modules} done={moduleDone} canWrite={canWrite} onToggle={toggleModule} onComplete={completeModule} onReopen={reopenModule} />
 
           {modules.research && <ResearchPanel key={p.id} p={p} canWrite={canWrite} onGenerate={() => setLetterGenOpen(true)} onEditInfo={() => setInfoEditOpen(true)} onTaskAdd={onTaskAdd} />}
 
@@ -1203,4 +1284,4 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
   );
 }
 
-Object.assign(window, { ProjectPage, ProjIcon });
+Object.assign(window, { ProjectPage, ProjIcon, getModuleDone, moduleIsDone });
