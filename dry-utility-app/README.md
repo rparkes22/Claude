@@ -86,14 +86,45 @@ off the gap between the busiest and lightest person (3 tasks or more), not a lim
 
 ## Client reports
 
-Reports are laid out on the letterhead and paginate without splitting a section, table row
-or card across a page break, with a 1in text inset on every page (`.msa-doc-body`, which
-has to out-specify the `.msa-doc > tbody > tr > td` padding reset or the report prints
-edge to edge). **Issue & file** stores the report exactly as it reads that day; printing
-files it too. The record is per project, newest first, and each entry is a frozen
-snapshot — a report that has gone to a client never changes as the project moves on. The
-record panel is screen-only (`.no-print`); left printable it came out as a stray
-full-bleed final page outside the letterhead.
+A report covers a **reporting period** — bi-weekly by default, weekly if the project is set
+that way on its Client reporting panel. Periods are fixed calendar windows anchored to a
+Monday (`periodFor`), not a rolling "last 14 days", so the boundaries come out the same
+whichever day the report is opened and every filed report belongs to exactly one period.
+
+**Issue & file** stores the report exactly as it reads that day. Filing again within the
+same period updates that period's report instead of stacking a near-duplicate — printing
+files it too, so the two buttons can't produce two records. Reports for periods already
+gone by are never touched. The record lists one entry per period, newest first, and each is
+a frozen snapshot: a report that has gone to a client never changes as the project moves on.
+
+The report itself carries, in order:
+
+- an **update note** — the narrative written per period, the first thing a client reads;
+- the **project timeline** — milestones (dated submittals, module completions, the Will
+  Serve dates, contract execution) on one horizontal run of time, markers coloured by
+  progress and labels alternating above and below, stacking outward into a second tier
+  where dates cluster. This mirrors the division's own tracking sheet;
+- **Will Serve**, **Utility Research**, **Existing Utility Plan** and **Utility
+  Coordination**, each only when the project has them;
+- **tasks & submittals** — every dated task with status and progress, this period's
+  highlighted;
+- **notes this period** — what the team actually logged on the project, in their words.
+
+Sections are numbered from the ones that appear, so a project without coordination work
+leaves no gap in the numbering. There is no SCE electrical review block: it said almost
+nothing and is gone.
+
+Layout is on the letterhead, paginating without splitting a section, table row or card
+across a page break, with a 1in text inset on every page (`.msa-doc-body`, which has to
+out-specify the `.msa-doc > tbody > tr > td` padding reset or the report prints edge to
+edge). The timeline's horizontal padding is half a label wide for the same reason — a
+marker any closer to the edge hangs its centred label off the side of the sheet.
+
+The record panel and the update-note editor are screen-only (`.no-print`); left printable
+the record came out as a stray full-bleed final page outside the letterhead.
+
+**Open project** on the report toolbar goes straight back into the project the report is
+for, rather than leaving you to navigate to Projects and find it again.
 
 ## Agency Setup (admin)
 

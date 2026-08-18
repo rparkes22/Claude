@@ -343,6 +343,33 @@
   .step-n { width: 23px; height: 23px; border-radius: 7px; background: var(--primary-tint); color: var(--primary); display: grid; place-items: center; font-weight: 700; font-size: 11.5px; flex-shrink: 0; font-family: 'Geist Mono', monospace; }
   .step-body { font-size: 12.5px; padding-top: 2px; }
   .step-body .so { color: var(--ink-3); font-size: 11px; margin-top: 1px; }
+  /* the narrative that opens the report — the first thing a client reads */
+  .rp-summary { margin-top: 18px; border-left: 3px solid var(--primary); background: var(--primary-tint); border-radius: 0 8px 8px 0; padding: 11px 15px; }
+  .rp-summary-lab { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--primary); }
+  .rp-summary-txt { font-size: 12.5px; color: var(--ink); line-height: 1.55; margin-top: 4px; white-space: pre-wrap; }
+
+  /* milestone timeline. The SVG scales to the sheet, so type sizes are set here in px
+     against the 700-unit viewBox rather than scaled per render. */
+  .rp-timeline { display: block; width: 100%; height: auto; margin: 2px 0 4px; overflow: hidden; }
+  .rp-tl-date { font-family: 'Geist Mono', monospace; font-size: 9px; font-weight: 700; fill: var(--ink); }
+  .rp-tl-name { font-size: 9.5px; fill: var(--ink-2); }
+  .rp-tl-pct { font-size: 8.5px; font-weight: 700; fill: var(--ink-4); }
+  .rp-tl-pct.done { fill: var(--ok); }
+  .rp-tl-pct.part { fill: var(--amber-ink); }
+  .rp-tl-now { font-family: 'Geist Mono', monospace; font-size: 8px; font-weight: 700; fill: var(--primary); letter-spacing: 0.06em; }
+
+  .rp-owner { display: block; font-size: 10.5px; color: var(--ink-4); font-weight: 400; margin-top: 1px; }
+  .rp-bar { display: inline-block; width: 62px; height: 6px; border-radius: 100px; background: var(--border); overflow: hidden; vertical-align: middle; }
+  .rp-bar-fill { display: block; height: 100%; border-radius: 100px; }
+
+  .rp-notes { display: flex; flex-direction: column; gap: 10px; }
+  .rp-note { border-left: 2px solid var(--border-strong); padding: 1px 0 1px 12px; }
+  .rp-note-hd { display: flex; align-items: baseline; gap: 8px; }
+  .rp-note-when { font-size: 10.5px; color: var(--ink-3); font-weight: 600; }
+  .rp-note-who { font-size: 10.5px; color: var(--ink-4); }
+  .rp-note-txt { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; margin-top: 2px; white-space: pre-wrap; }
+  .rp-note-files { font-size: 10.5px; color: var(--ink-4); margin-top: 3px; }
+
   .foot { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-end; }
   .foot-note { font-size: 10px; color: var(--ink-4); line-height: 1.5; max-width: 70%; }
   .foot-page { font-size: 10px; color: var(--ink-3); font-family: 'Geist Mono', monospace; text-align: right; }
@@ -481,7 +508,8 @@
      stranded at the foot of a page, a table row split down the middle, or a card cut in
      half — the report had no break control at all. */
   .sheet .section, .sheet .changes-box, .sheet .tb-meta, .sheet .foot,
-  .sheet .step, .sheet .section tr, .sheet .bcard { break-inside: avoid; page-break-inside: avoid; }
+  .sheet .step, .sheet .section tr, .sheet .bcard,
+  .sheet .rp-summary, .sheet .rp-note, .sheet .rp-timeline { break-inside: avoid; page-break-inside: avoid; }
   /* the letterhead scaffold itself must stay breakable — its body row holds the whole
      report, and marking it unbreakable pushed every page down by one, leaving page 1 blank */
   .sheet .msa-doc, .sheet .msa-doc > tbody, .sheet .msa-doc > tbody > tr,

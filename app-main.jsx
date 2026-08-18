@@ -850,7 +850,6 @@ function ReportTimeline({ milestones, today }) {
 }
 
 function ReportsPage({ projects, users, currentUser, canWrite, showToast, initialCode, onOpenProject }) {
-  console.log('PROBE ReportsPage initialCode', initialCode);
   const [code, setCode] = React.useState(initialCode || projects[0]?.code || '');
   const [reports, setReports] = React.useState(loadReports);
   const [summaries, setSummaries] = React.useState(loadSummaries);
@@ -1785,7 +1784,7 @@ function App() {
               onPhaseUpdate={onPhaseUpdate}
               onInfoUpdate={onInfoUpdate}
               onProjectDelete={isAdmin ? onProjectDelete : null}
-              onGoReport={() => { console.log('PROBE goReport', openProject.code); setReportCode(openProject.code); setOpenProjectId(null); setPage('reports'); }}
+              onGoReport={() => { setReportCode(openProject.code); setOpenProjectId(null); setPage('reports'); }}
             />
           ) : (
             <>

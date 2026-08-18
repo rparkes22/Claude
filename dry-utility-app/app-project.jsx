@@ -1268,7 +1268,16 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
             <div className="panel-hd"><h2>Client reporting</h2></div>
             <div style={{ padding: 16 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span className="badge b-blue"><span className="badge-dot"></span>{p.reporting.cadence}</span>
+                {/* cadence sets the reporting period, so it has to be changeable — a project
+                    left on the wrong one files reports against the wrong window */}
+                {canWrite ? (
+                  <select className="select" style={{ width: 'auto', height: 26, fontSize: 12, paddingLeft: 8, paddingRight: 24, fontWeight: 600 }}
+                    value={p.reporting.cadence} title="Reporting cadence"
+                    onChange={e => onInfoUpdate(p.id, { reporting: { ...p.reporting, cadence: e.target.value } })}>
+                    <option value="Bi-weekly">Bi-weekly</option>
+                    <option value="Weekly">Weekly</option>
+                  </select>
+                ) : <span className="badge b-blue"><span className="badge-dot"></span>{p.reporting.cadence}</span>}
                 <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
                   {p.reporting.lastSent ? `last sent ${fmtShort(p.reporting.lastSent)}` : 'no report sent yet'}
                 </span>
