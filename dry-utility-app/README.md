@@ -37,6 +37,13 @@ Sign in with one of the demo users on the login screen.
    the derived one, and the record says which it is. Project tasks live here and can be
    given a deadline when they are created.
 
+   A letter can be **marked complete** once the work it authorised is done. From then on
+   its clock stops mattering, so everything that chases expiry stands down: the countdown
+   and the expiry warnings come off the project page, it leaves the Will Serve urgency
+   list for a *Closed out* table, its expiry stops appearing as a dashboard deadline or a
+   notification, and the client report says *Complete* instead of counting days. Reopening
+   it puts the clock back.
+
 Calendar arithmetic clamps to the end of the target month rather than rolling over, so a
 letter issued 31 Aug runs to 28 Feb — not 3 Mar — and 29 Feb + 1 year is 28 Feb.
 
@@ -73,7 +80,14 @@ hand-off items all stay exactly as they were and come back on reopen.
 `admin` (full access including users), `manager` (full project access and assigns work,
 plus agency setup, but no user admin), `editor` (read/write projects, letters, reports),
 `viewer` (read-only). Permissions are declared once in `PERMS` and read through `can()`;
-an unrecognised role falls back to read-only rather than silently gaining access.
+an unrecognised role falls back to read-only rather than silently gaining access. The
+matrix on the Users page is built from `ROLE_META` and read through `can()`, so a role
+added to the model gets a column rather than being quietly missing from the table.
+
+Deleting a project is its own permission (`deleteProjects`, admin and manager) rather than
+riding on user administration, which had left the division manager unable to remove a
+project they could otherwise do anything to. The control lives in the **Edit project**
+dialog, next to the rest of the project's identity.
 
 Every project carries an **MSA project manager**, set at creation (defaulting to whoever
 is creating it) and editable afterwards. The PM drives task ownership on the Team page and
@@ -83,6 +97,13 @@ There is **no per-person task cap**. Load is uneven by design — the division m
 carries a large share — so workload bars are scaled against the busiest person, nobody is
 flagged "over capacity", and an assignment is never blocked. Rebalancing suggestions key
 off the gap between the busiest and lightest person (3 tasks or more), not a limit.
+
+## Navigating
+
+The app is a single page, so the browser's Back button would otherwise leave it entirely.
+Every screen change pushes a history entry and Back walks back through them — report to
+project, project to list — with Forward working the same way. Nothing about the app's
+state lives in the URL; the entries carry it.
 
 ## Client reports
 

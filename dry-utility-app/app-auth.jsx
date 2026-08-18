@@ -175,15 +175,19 @@ function UsersPage({ users, setUsers, currentUser, showToast }) {
           <div className="panel">
             <div className="panel-hd"><h2>Role permissions</h2></div>
             <div style={{ padding: '4px 18px 14px' }}>
+              {/* built from ROLE_META and read through can(), so a role added to the model
+                  gets a column here instead of being silently missing — Manager was */}
               <table className="perm-matrix">
-                <thead><tr><th>Permission</th><th>Admin</th><th>Editor</th><th>Viewer</th></tr></thead>
+                <thead><tr><th>Permission</th>{Object.keys(ROLE_META).map(r => <th key={r}>{ROLE_META[r].label}</th>)}</tr></thead>
                 <tbody>
                   {PERMS.map(p => (
                     <tr key={p.key}>
                       <td>{p.label}</td>
-                      <td>{p.admin ? <span className="perm-yes"><AuthIcon name="check" size={13} /></span> : <span className="perm-no"><AuthIcon name="x" size={11} /></span>}</td>
-                      <td>{p.editor ? <span className="perm-yes"><AuthIcon name="check" size={13} /></span> : <span className="perm-no"><AuthIcon name="x" size={11} /></span>}</td>
-                      <td>{p.viewer ? <span className="perm-yes"><AuthIcon name="check" size={13} /></span> : <span className="perm-no"><AuthIcon name="x" size={11} /></span>}</td>
+                      {Object.keys(ROLE_META).map(r => (
+                        <td key={r}>{can({ role: r }, p.key)
+                          ? <span className="perm-yes"><AuthIcon name="check" size={13} /></span>
+                          : <span className="perm-no"><AuthIcon name="x" size={11} /></span>}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>

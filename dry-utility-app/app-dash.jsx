@@ -22,7 +22,8 @@ function DeadlineCalendar({ projects, onOpenProject }) {
     };
     projects.forEach(p => {
       const wd = deriveWsl(p.wsl);
-      if (wd) {
+      // expiry dates stop being deadlines once the letter is closed out
+      if (wd && !wd.complete) {
         push(wd.effectiveExpiry, { kind: 'wsl', sev: wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok', label: `WSL expires — ${projLabel(p)}`, pid: p.id });
         if (!wd.extensionUsed) push(wd.originalExpiry, { kind: 'wsl-orig', sev: 'warn', label: `1-yr mark (ext deadline) — ${projLabel(p)}`, pid: p.id });
       }
@@ -135,7 +136,7 @@ function DeadlineCalendar({ projects, onOpenProject }) {
 
 function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
   const wds = projects.map(p => ({ p, wd: deriveWsl(p.wsl) }));
-  const wslAttention = wds.filter(x => x.wd && x.wd.state !== 'active').sort((a, b) => a.wd.daysLeft - b.wd.daysLeft);
+  const wslAttention = wds.filter(x => x.wd && !x.wd.complete && x.wd.state !== 'active').sort((a, b) => a.wd.daysLeft - b.wd.daysLeft);
 
   // my open tasks: explicitly assigned to me, or unassigned on projects I PM
   const myProjects = projects.filter(p => p.pm === currentUser.initials);

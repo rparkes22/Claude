@@ -648,7 +648,9 @@ function ProjTimeline({ p, modules }) {
     modules.research !== false && { lab: 'Utility Research', state: priorDone.research || lastRecv ? 'done' : firstSent ? 'active' : 'todo', sub: priorDone.research && !lastRecv ? doneSub('research', 'complete before setup') : lastRecv ? `complete · ${resWeeks} wks` : firstSent ? `week ${resWeeks} of 6–8` : '6–8 wks typical', late: !priorDone.research && !lastRecv && firstSent && resWeeks > 8 },
     { lab: 'Existing Utility Plan', state: priorDone.eub || eubIssued || (eub && eub.status === 'ok') ? 'done' : (eub || eubSt) ? 'active' : 'todo', sub: priorDone.eub && !eubIssued ? doneSub('eub', 'complete before setup') : eubIssued ? `issued${eubSt.issued ? ' ' + fmtShort(eubSt.issued) : ''}` : eubSt ? EUB_STAGES[eubSt.stage] : eub ? SUB_META[eub.status].label : 'follows research' },
     modules.coordination && { lab: 'Utility Coordination', state: priorDone.coordination || (cm.length && !cmOpen) ? 'done' : cm.length ? 'active' : 'todo', sub: priorDone.coordination ? doneSub('coordination', 'complete') : cm.length ? `${cmOpen} open · ${cm.length - cmOpen} closed` : 'not started' },
-    wd && { lab: 'Will Serve', state: wd.state === 'expired' ? 'late' : wd.state === 'ok' ? 'done' : 'active', sub: wd.state === 'expired' ? 'expired' : `${wd.daysLeft}d left`, late: wd.state === 'expired' || wd.state === 'critical' },
+    wd && (wd.complete
+      ? { lab: 'Will Serve', state: 'done', sub: wd.completedOn ? `closed out ${fmtShort(wd.completedOn)}` : 'closed out' }
+      : { lab: 'Will Serve', state: wd.state === 'expired' ? 'late' : 'active', sub: wd.state === 'expired' ? 'expired' : `${wd.daysLeft}d left`, late: wd.state === 'expired' || wd.state === 'critical' }),
     { lab: 'Complete', state: p.phase === 'Complete' ? 'done' : 'todo', sub: p.phase === 'Complete' ? (p.completedOn ? fmtShort(p.completedOn) : 'archived') : p.phase },
   ].filter(Boolean);
   const C = { done: 'var(--ok)', active: 'var(--primary)', todo: 'var(--border-strong)', late: 'var(--warn)' };
@@ -726,6 +728,11 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
             No Will Serve Letter recorded yet — coordination tasks run off the WSL, which is valid <b>1 year</b> from issue with a <b>6-month extension</b> available.
             {capStudy ? <> A capacity study {capStudy.state === 'received' ? 'has come back' : 'is out with IID'}, but that covers viability only.</> : null}
           </span>
+        </div>
+      ) : wsl.complete ? (
+        <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', fontSize: 11.5, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ProjIcon name="check" size={12} />
+          <span>Will Serve Letter closed out{wsl.completedOn ? ` ${fmtShort(wsl.completedOn)}` : ''} — coordination work under it is complete.</span>
         </div>
       ) : wsl.state === 'expired' ? (
         <div style={{ padding: '9px 16px', borderBottom: '1px solid var(--border)', background: 'var(--warn-tint)', color: 'var(--warn-ink)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -948,6 +955,8 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
 
   // WSL date editing
   const [wslEditing, setWslEditing] = React.useState(false);
+  const [wslDoneOpen, setWslDoneOpen] = React.useState(false);
+  const [wslDone, setWslDone] = React.useState('');
   const [editIssued, setEditIssued] = React.useState('');
   const [editExt, setEditExt] = React.useState(false);
   const [editExtMonths, setEditExtMonths] = React.useState(6);
@@ -985,6 +994,8 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
       // only store overrides that were actually entered
       expires: editExpires || undefined,
       extensionExpires: editExtExpires || undefined,
+      // editing the dates is not reopening the letter
+      completed: (p.wsl && p.wsl.completed) || undefined,
     });
     setWslEditing(false);
   };
@@ -1031,7 +1042,9 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {canWrite && <button className="btn btn-icon" title="Edit project info" onClick={() => setInfoEditOpen(true)}><ProjIcon name="edit" size={13} /></button>}
+          {/* labelled, not a bare pencil — delete lives inside this dialog and nobody
+              found it behind an unlabelled icon */}
+          {canWrite && <button className="btn" title="Edit project info" onClick={() => setInfoEditOpen(true)}><ProjIcon name="edit" size={13} />Edit project</button>}
           {canWrite && <button className="btn" onClick={() => setLetterGenOpen(true)}><ProjIcon name="edit" size={13} />Research letters</button>}
           <button className="btn" onClick={onGoReport}><ProjIcon name="report" size={13} />Client report</button>
         </div>
@@ -1207,46 +1220,80 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                   {/* status stays "Sent" for the life of the project — expiry is separate */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                     <span className="badge b-ok"><span className="badge-dot"></span>Sent {fmtShort(wd.issued)}</span>
-                    {wd.state === 'expired' && <span className="badge b-warn"><span className="badge-dot"></span>Expired</span>}
+                    {wd.complete && <span className="badge b-ok"><span className="badge-dot"></span>Complete</span>}
+                    {!wd.complete && wd.state === 'expired' && <span className="badge b-warn"><span className="badge-dot"></span>Expired</span>}
                     {wd.extensionUsed && <span className="badge b-violet"><span className="badge-dot"></span>Extension used ({wd.extensionMonths} mo)</span>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: fill }}>{wd.state === 'expired' ? Math.abs(wd.daysLeft) : wd.daysLeft}</span>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{wd.state === 'expired' ? `days past expiry (${fmtShort(wd.effectiveExpiry)})` : 'days until expiry'}</span>
-                  </div>
-                  <div className="wsl-bar">
-                    <div className="wsl-bar-fill" style={{ width: `${Math.min(todayPos, 100)}%`, background: fill, opacity: 0.4 }}></div>
-                    <div className="wsl-bar-today" style={{ left: `${todayPos}%` }}></div>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>
-                    <span>{fmtShort(wd.issued)}</span><span>{fmtShort(wd.effectiveExpiry)}</span>
-                  </div>
+                  {/* Closed out: the countdown, the bar and the expiry warnings all go. What
+                      the letter authorised is done, so its clock is no longer news. */}
+                  {wd.complete ? (
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+                      Coordination authorised by this letter is <b>complete</b>
+                      {wd.completedOn ? <> as of <span className="mono">{fmt(wd.completedOn)}</span></> : null}. Expiry is no longer tracked.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                        <span className="mono" style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', color: fill }}>{wd.state === 'expired' ? Math.abs(wd.daysLeft) : wd.daysLeft}</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{wd.state === 'expired' ? `days past expiry (${fmtShort(wd.effectiveExpiry)})` : 'days until expiry'}</span>
+                      </div>
+                      <div className="wsl-bar">
+                        <div className="wsl-bar-fill" style={{ width: `${Math.min(todayPos, 100)}%`, background: fill, opacity: 0.4 }}></div>
+                        <div className="wsl-bar-today" style={{ left: `${todayPos}%` }}></div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--ink-4)', fontFamily: 'Geist Mono, monospace' }}>
+                        <span>{fmtShort(wd.issued)}</span><span>{fmtShort(wd.effectiveExpiry)}</span>
+                      </div>
+                    </>
+                  )}
                   <div style={{ marginTop: 12 }}>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Issued</span><span className="mono">{fmt(wd.issued)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Original expiry</span><span className="mono">{fmt(wd.originalExpiry)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Extension</span><span>{wd.extensionUsed ? (wd.extensionManual ? `Granted to ${fmt(wd.extensionExpiry)}` : `Used (${wd.extensionMonths} mo)`) : (wd.extensionManual ? `Available to ${fmt(wd.extensionExpiry)}` : `Available (1× ${wd.extensionMonths} mo)`)}</span></div>
                     <div className="kv" style={{ display: 'flex', padding: '6px 0', fontSize: 12.5, gap: 12 }}><span style={{ color: 'var(--ink-3)', width: 110 }}>Effective expiry</span><span className="mono" style={{ color: fill }}>{fmt(wd.effectiveExpiry)}</span></div>
                   </div>
-                  {wd.state === 'critical' && wd.extensionUsed && (
+                  {!wd.complete && wd.state === 'critical' && wd.extensionUsed && (
                     <div className="callout crit" style={{ marginTop: 12 }}>
                       <ProjIcon name="alert" size={16} />
                       <div><b>No extensions remain.</b> If not complete by {fmt(wd.effectiveExpiry)}, re-application is required (~18 months).</div>
                     </div>
                   )}
-                  {(wd.state === 'critical' || wd.state === 'warning') && !wd.extensionUsed && (
+                  {!wd.complete && (wd.state === 'critical' || wd.state === 'warning') && !wd.extensionUsed && (
                     <div className="callout warn" style={{ marginTop: 12 }}>
                       <ProjIcon name="clock" size={16} />
                       <div><b>Extension available.</b> {wd.extensionManual ? 'An extension date has been entered' : `One ${wd.extensionMonths}-month extension`} can move expiry to {fmt(wd.extensionExpiry)}.</div>
                     </div>
                   )}
                   <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {wd.state === 'expired'
-                      ? <button className="btn btn-warn btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'reapply')}><ProjIcon name="refresh" size={12} />Reapply</button>
-                      : canExtend
-                        ? <button className="btn btn-primary btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'extend')}><ProjIcon name="clock" size={12} />Request extension</button>
-                        : <button className="btn btn-sm" disabled><ProjIcon name="check" size={12} />No extension available</button>}
+                    {wd.complete ? (
+                      <button className="btn btn-sm" disabled={!canWrite} onClick={() => onWslEdit(p.id, { ...p.wsl, completed: null })}>
+                        <ProjIcon name="refresh" size={12} />Reopen
+                      </button>
+                    ) : (
+                      <>
+                        {wd.state === 'expired'
+                          ? <button className="btn btn-warn btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'reapply')}><ProjIcon name="refresh" size={12} />Reapply</button>
+                          : canExtend
+                            ? <button className="btn btn-primary btn-sm" disabled={!canWrite} onClick={() => onWslAction(p.id, 'extend')}><ProjIcon name="clock" size={12} />Request extension</button>
+                            : <button className="btn btn-sm" disabled><ProjIcon name="check" size={12} />No extension available</button>}
+                        {/* closing out is what stops the countdown — see deriveWsl */}
+                        {wslDoneOpen ? null : (
+                          <button className="btn btn-sm" disabled={!canWrite} onClick={() => { setWslDone(TODAY.toISOString().slice(0, 10)); setWslDoneOpen(true); }}>
+                            <ProjIcon name="check" size={12} />Mark complete
+                          </button>
+                        )}
+                      </>
+                    )}
                     {!canWrite && <span className="readonly-note"><ProjIcon name="lock" size={11} />Read-only</span>}
                   </div>
+                  {wslDoneOpen && !wd.complete && (
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>Completed</label>
+                      <input type="date" className="input" style={{ height: 28, fontSize: 12, width: 148 }} value={wslDone} onChange={e => setWslDone(e.target.value)} />
+                      <button className="btn btn-primary btn-sm" onClick={() => { onWslEdit(p.id, { ...p.wsl, completed: wslDone || TODAY.toISOString().slice(0, 10) }); setWslDoneOpen(false); }}>Save</button>
+                      <button className="btn btn-sm" onClick={() => setWslDoneOpen(false)}>Cancel</button>
+                    </div>
+                  )}
                 </>
               ) : p.utility === 'SCE' ? (
                 <div className="callout info">

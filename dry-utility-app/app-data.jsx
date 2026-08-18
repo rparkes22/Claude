@@ -58,6 +58,10 @@ const PERMS = [
   { key: 'genReports',    label: 'Generate client reports',      admin: true, manager: true, editor: true,  viewer: false },
   { key: 'assignWork',    label: 'Assign work across the team',   admin: true, manager: true, editor: false, viewer: false },
   { key: 'manageSetup',   label: 'Agency setup — agencies, cities, templates', admin: true, manager: true, editor: false, viewer: false },
+  // Deleting a project is project access, not user administration — the division manager
+  // has it. It was gated on `manageUsers`, which left the manager unable to remove a
+  // project they could otherwise do anything to.
+  { key: 'deleteProjects', label: 'Delete projects',            admin: true, manager: true, editor: false, viewer: false },
   { key: 'manageUsers',   label: 'Manage users & permissions',   admin: true, manager: false, editor: false, viewer: false },
 ];
 // Unknown/legacy roles fall back to read-only rather than silently gaining access.
@@ -651,19 +655,26 @@ function deriveWsl(wsl) {
   const extensionExpiry = extensionManual ? parseDate(wsl.extensionExpires) : derivedExtensionExpiry;
   const effectiveExpiry = wsl.extensionUsed ? extensionExpiry : originalExpiry;
   const daysLeft = daysBetween(TODAY, effectiveExpiry);
+  // Once the work the letter authorised is done, the clock stops mattering: a closed-out
+  // WSL is not "expiring in 12 days" or "expired", it is finished. Everything that chases
+  // expiry — countdowns, warnings, calendar deadlines, notifications, next steps — reads
+  // `complete` and stands down.
+  const complete = !!wsl.completed;
   let state;
-  if (daysLeft < 0) state = 'expired';
+  if (complete) state = 'complete';
+  else if (daysLeft < 0) state = 'expired';
   else if (daysLeft <= 30) state = 'critical';
   else if (daysLeft <= 60) state = 'warning';
   else state = 'active';
   // Once a WSL has gone out its status stays "Sent" — expiry is tracked separately
   // by `state`, and never downgrades the fact that the letter was issued.
-  const status = 'Sent';
+  const status = complete ? 'Complete' : 'Sent';
   // An extension is worth chasing when time is short (or already gone) and the
   // single 6-month extension has not been used yet.
-  const needsExtension = !wsl.extensionUsed && (state === 'warning' || state === 'critical' || state === 'expired');
+  const needsExtension = !complete && !wsl.extensionUsed && (state === 'warning' || state === 'critical' || state === 'expired');
   return { ...wsl, issued, originalExpiry, effectiveExpiry, extensionExpiry, daysLeft, state, status,
-           sent: true, needsExtension, extensionMonths, expiryManual, extensionManual,
+           sent: true, complete, completedOn: wsl.completed ? parseDate(wsl.completed) : null,
+           needsExtension, extensionMonths, expiryManual, extensionManual,
            derivedExpiry, derivedExtensionExpiry };
 }
 

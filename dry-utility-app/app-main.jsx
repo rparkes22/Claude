@@ -68,6 +68,13 @@ function DDPips({ dd }) {
 }
 function WslChip({ wd }) {
   if (!wd) return <span className="util-tag util-sce">SCE · n/a</span>;
+  // Closed out — the countdown is retired, so the chip says so and stops shouting.
+  if (wd.complete) return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Complete</span>
+      {wd.completedOn && <span style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>{fmtShort(wd.completedOn)}</span>}
+    </span>
+  );
   // The letter stays "Sent" once issued; expiry rides alongside it as a separate signal.
   const cls = wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok';
   return (
@@ -234,13 +241,13 @@ function WslDetail({ p, wd, canWrite, onWslAction }) {
       <div className="wsl-strip">
         <div className="wsl-box">
           <div className="wb-lab">Status</div>
-          <div className="wb-val" style={{ color: 'var(--ok)', fontFamily: 'inherit', fontSize: 15 }}>Sent</div>
+          <div className="wb-val" style={{ color: 'var(--ok)', fontFamily: 'inherit', fontSize: 15 }}>{wd.status}</div>
           <div className="wb-sub">issued {fmtShort(wd.issued)}</div>
         </div>
         <div className="wsl-box">
-          <div className="wb-lab">{wd.state === 'expired' ? 'Past expiry' : 'Days left'}</div>
-          <div className="wb-val" style={{ color: fill }}>{wd.state === 'expired' ? `${Math.abs(wd.daysLeft)}d` : `${wd.daysLeft}d`}</div>
-          <div className="wb-sub">expire{wd.state === 'expired' ? 'd' : 's'} {fmt(wd.effectiveExpiry)}</div>
+          <div className="wb-lab">{wd.complete ? 'Closed out' : wd.state === 'expired' ? 'Past expiry' : 'Days left'}</div>
+          <div className="wb-val" style={{ color: wd.complete ? 'var(--ok)' : fill }}>{wd.complete ? 'Complete' : wd.state === 'expired' ? `${Math.abs(wd.daysLeft)}d` : `${wd.daysLeft}d`}</div>
+          <div className="wb-sub">{wd.complete ? (wd.completedOn ? fmt(wd.completedOn) : 'coordination done') : `expire${wd.state === 'expired' ? 'd' : 's'} ${fmt(wd.effectiveExpiry)}`}</div>
         </div>
         <div className="wsl-box">
           <div className="wb-lab">Extension</div>
@@ -282,7 +289,8 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
     contract: p => p.contractDate ? parseDate(p.contractDate).getTime() : Infinity,
     phase: p => PHASES.indexOf(p.phase),
     tasks: p => { const r = getResearchRows(p); return r.length ? r.filter(x => x.received).length / r.length : -1; },
-    wsl: p => { const w = deriveWsl(p.wsl); return w ? (w.state === 'expired' ? -1 : w.daysLeft) : Infinity; },
+    // closed-out letters sort past everything with a live clock — they are not urgent
+    wsl: p => { const w = deriveWsl(p.wsl); return w ? (w.complete ? Infinity : w.state === 'expired' ? -1 : w.daysLeft) : Infinity; },
   };
 
   // agencies present across projects, with counts
@@ -319,7 +327,7 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
     const wds = projects.map(p => deriveWsl(p.wsl)).filter(Boolean);
     return {
       total: projects.length,
-      wslRisk: wds.filter(w => w.state !== 'active').length,
+      wslRisk: wds.filter(w => !w.complete && w.state !== 'active').length,
       tasksPending: projects.reduce((n, p) => n + getResearchRows(p).filter(r => !r.received).length, 0),
     };
   }, [projects]);
@@ -600,7 +608,12 @@ function EmailAlertsPanel({ rows, canWrite, showToast }) {
 
 // ===== WSL PAGE =====
 function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) {
-  const rows = projects.map(p => ({ p, wd: deriveWsl(p.wsl) })).filter(x => x.wd).sort((a, b) => a.wd.daysLeft - b.wd.daysLeft);
+  const all = projects.map(p => ({ p, wd: deriveWsl(p.wsl) })).filter(x => x.wd);
+  // Closed-out letters are history, not a queue. They come out of the urgency list (and
+  // out of the expiry alerts) and sit in their own table below.
+  const rows = all.filter(x => !x.wd.complete).sort((a, b) => a.wd.daysLeft - b.wd.daysLeft);
+  const doneRows = all.filter(x => x.wd.complete)
+    .sort((a, b) => (b.wd.completedOn || 0) - (a.wd.completedOn || 0));
   // capacity studies run independently of the WSL clock — outstanding ones first
   const capRows = projects
     .map(p => ({ p, cs: deriveCapacityStudy(p.capacityStudy), wd: deriveWsl(p.wsl) }))
@@ -641,6 +654,31 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
           </table>
         </div>
       </div>
+      {doneRows.length > 0 && (
+        <div className="panel" style={{ marginBottom: 14 }}>
+          <div className="panel-hd">
+            <h2>Closed out <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— coordination complete, expiry no longer tracked</span></h2>
+            <span className="meta">{doneRows.length}</span>
+          </div>
+          <div className="grid-scroll">
+            <table className="grid">
+              <thead><tr><th>Project</th><th>Client</th><th>City</th><th>Issued</th><th>Completed</th><th style={{ textAlign: 'right' }}>Status</th></tr></thead>
+              <tbody>
+                {doneRows.map(({ p, wd }) => (
+                  <tr key={p.id} className="row-main" onClick={() => onOpenProject(p.id)}>
+                    <td><div className="proj-name">{p.name}</div><div className="proj-code">{p.code}</div></td>
+                    <td>{p.client}</td>
+                    <td style={{ fontSize: 12 }}>{p.location.city}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>{fmtShort(wd.issued)}, {parseDate(wd.issued).getFullYear()}</td>
+                    <td className="mono" style={{ fontSize: 12 }}>{wd.completedOn ? fmt(wd.completedOn) : '—'}</td>
+                    <td style={{ textAlign: 'right' }}><WslChip wd={wd} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {capRows.length > 0 && (
         <div className="panel">
           <div className="panel-hd">
@@ -749,7 +787,9 @@ function projectMilestones(project, wd) {
     // markers on the same day saying the same thing is just clutter
     const sameDay = ms.some(m => /will serve/i.test(m.name) && fmtShort(m.date) === fmtShort(wd.issued));
     if (!sameDay) ms.push({ date: wd.issued, name: 'Will Serve issued', pct: 1, kind: 'wsl' });
-    ms.push({ date: wd.effectiveExpiry, name: 'Will Serve expires', pct: 0, kind: 'wsl' });
+    if (wd.complete) {
+      if (wd.completedOn) ms.push({ date: wd.completedOn, name: 'Will Serve closed out', pct: 1, kind: 'wsl' });
+    } else ms.push({ date: wd.effectiveExpiry, name: 'Will Serve expires', pct: 0, kind: 'wsl' });
   }
   // one milestone per name+date; tasks and modules can name the same deliverable
   const seen = new Set();
@@ -911,7 +951,8 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
     (it.log || []).forEach(e => { if (inPeriod(e.date)) { const st = { r: 'Received from utility', s: 'Sent to client', b: 'Back from client', f: 'Forwarded to utility' }[e.col]; changes.push(`${it.name} — ${st}`); } });
     if (inPeriod(it.closed)) changes.push(`${it.name} — hand-off closed out`);
   });
-  if (wd && wd.state !== 'active') changes.push(wd.state === 'expired' ? 'Will Serve Letter expired — re-application required' : `Will Serve Letter — ${wd.daysLeft} days to expiry`);
+  if (wd && wd.complete && inPeriod(wd.completed)) changes.push('Will Serve Letter closed out — coordination complete');
+  else if (wd && !wd.complete && wd.state !== 'active') changes.push(wd.state === 'expired' ? 'Will Serve Letter expired — re-application required' : `Will Serve Letter — ${wd.daysLeft} days to expiry`);
   const ddActive = project.dd.filter(d => d.status !== 'na');
   const ddDone = ddActive.filter(d => d.status === 'done').length;
 
@@ -920,8 +961,8 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
   if (resWaiting.length) steps.push({ t: `Follow up on ${resWaiting.length} outstanding research ${resWaiting.length === 1 ? 'letter' : 'letters'} (${resWaiting.slice(0, 3).map(r => AGENCIES[r.agency]?.short || r.label).join(', ')}${resWaiting.length > 3 ? '…' : ''}).`, o: `Oldest has waited ${Math.max(...resWaiting.map(r => daysBetween(r.sent, TODAY)))} days.` });
   const cmStale = cmItemsRpt.filter(it => !it.closed).map(it => ({ it, ball: cmBall(it), days: cmDays(cmBall(it).since) })).filter(x => x.days >= 14).sort((a, b) => b.days - a.days);
   if (cmStale.length) steps.push({ t: `Nudge ${cmStale.length} stale coordination hand-off${cmStale.length === 1 ? '' : 's'} — starting with ${cmStale[0].it.name} (${AGENCIES[cmStale[0].it.agency]?.short || ''}).`, o: `With ${({ utility: 'the utility', client: 'the client', msa: 'MSA' })[cmStale[0].ball.holder]} for ${cmStale[0].days} days.` });
-  if (wd && wd.state !== 'active' && wd.state !== 'expired') steps.push({ t: `Stay ahead of the WSL expiry (${fmt(wd.effectiveExpiry)}).`, o: `${wd.daysLeft} days remaining${wd.extensionUsed ? ' — no extension left.' : '; one 6-month extension available.'}` });
-  if (wd && wd.state === 'expired') steps.push({ t: 'File new Will Serve Letter application with IID.', o: 'Re-application is an ~18-month process.' });
+  if (wd && !wd.complete && wd.state !== 'active' && wd.state !== 'expired') steps.push({ t: `Stay ahead of the WSL expiry (${fmt(wd.effectiveExpiry)}).`, o: `${wd.daysLeft} days remaining${wd.extensionUsed ? ' — no extension left.' : '; one 6-month extension available.'}` });
+  if (wd && !wd.complete && wd.state === 'expired') steps.push({ t: 'File new Will Serve Letter application with IID.', o: 'Re-application is an ~18-month process.' });
   const openDD = project.dd.find(d => d.status === 'prog') || project.dd.find(d => d.status === 'todo');
   if (openDD) steps.push({ t: `Complete ${openDD.name} for the due-diligence package.`, o: `Currently ${DD_META[openDD.status].label}.` });
   if (steps.length === 0) steps.push({ t: `Maintain ${cadence.toLowerCase()} client coordination.`, o: 'Standing item.' });
@@ -1009,6 +1050,7 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
       asOf: fmt(TODAY), today: parseDate(TODAY).toISOString().slice(0, 10),
       changes,
       wsl: wd ? {
+        complete: wd.complete, completedOn: wd.completedOn ? fmt(wd.completedOn) : null,
         daysLeft: wd.daysLeft, state: wd.state,
         expiry: fmt(wd.effectiveExpiry), issued: fmtShort(wd.issued),
         issuedYear: parseDate(wd.issued).getFullYear(),
@@ -1114,7 +1156,10 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
             <div className="section">
               <div className="section-hd"><h2>Will Serve Letter</h2><span className="num">{shown.num.wsl}</span></div>
               <div className="wsl-strip">
-                <div className="wsl-box"><div className="wb-lab">Days to expiry</div><div className="wb-val" style={{ color: shown.wsl.daysLeft <= 60 ? 'var(--warn)' : 'var(--ink)' }}>{shown.wsl.state === 'expired' ? 'Expired' : shown.wsl.daysLeft}</div><div className="wb-sub">{shown.wsl.expiry}</div></div>
+                {/* closed out: the client is told it is done, not how many days are left */}
+                {shown.wsl.complete
+                  ? <div className="wsl-box"><div className="wb-lab">Status</div><div className="wb-val" style={{ fontSize: 15, color: 'var(--ok)' }}>Complete</div><div className="wb-sub">{shown.wsl.completedOn || 'coordination closed out'}</div></div>
+                  : <div className="wsl-box"><div className="wb-lab">Days to expiry</div><div className="wb-val" style={{ color: shown.wsl.daysLeft <= 60 ? 'var(--warn)' : 'var(--ink)' }}>{shown.wsl.state === 'expired' ? 'Expired' : shown.wsl.daysLeft}</div><div className="wb-sub">{shown.wsl.expiry}</div></div>}
                 <div className="wsl-box"><div className="wb-lab">Issued</div><div className="wb-val">{shown.wsl.issued}</div><div className="wb-sub">{shown.wsl.issuedYear}</div></div>
                 <div className="wsl-box"><div className="wb-lab">Extension</div><div className="wb-val">{shown.wsl.extensionUsed ? 'Used' : 'Available'}</div><div className="wb-sub">{shown.wsl.extensionSub}</div></div>
               </div>
@@ -1307,7 +1352,8 @@ function buildNotifications(projects) {
   const out = [];
   projects.forEach(p => {
     const wd = deriveWsl(p.wsl);
-    if (wd) {
+    // a closed-out letter has nothing left to chase — no expiry or extension alerts
+    if (wd && !wd.complete) {
       if (wd.state === 'expired') out.push({ id: `wsl-exp-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expired — ${projLabel(p)}`, sub: `Sent ${fmtShort(wd.issued)} · lapsed ${fmtShort(wd.effectiveExpiry)} · re-application required`, ts: wd.effectiveExpiry });
       else if (wd.state === 'critical') out.push({ id: `wsl-crit-${p.id}`, pid: p.id, sev: 'crit', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${projLabel(p)}`, sub: wd.extensionUsed ? 'No extensions remain' : 'Extension still available', ts: TODAY });
       else if (wd.state === 'warning') out.push({ id: `wsl-warn-${p.id}`, pid: p.id, sev: 'warn', icon: 'clock', title: `WSL expires in ${wd.daysLeft} days — ${projLabel(p)}`, sub: `Expiry ${fmtShort(wd.effectiveExpiry)}`, ts: TODAY });
@@ -1546,7 +1592,7 @@ function App() {
   };
 
   const onProjectDelete = (pid) => {
-    if (!isAdmin) return;
+    if (!canDelete) return;
     const p = projects.find(x => x.id === pid);
     setOpenProjectId(null);
     if (userProjects.some(x => x.id === pid)) {
@@ -1582,6 +1628,7 @@ function App() {
   const canWrite = can(currentUser, 'addProjects');
   const isAdmin = can(currentUser, 'manageUsers');
   const canSetup = can(currentUser, 'manageSetup');
+  const canDelete = can(currentUser, 'deleteProjects');
 
   const login = (u) => { setSessionId(u.id); persistSession(u.id); showToast(`Welcome, ${u.name.split(' ')[0]}`); };
   const logout = () => { setSessionId(null); persistSession(null); setPage('tracker'); };
@@ -1706,6 +1753,32 @@ function App() {
     return map;
   }, [projects, users, taskOverrides]);
 
+  // ---- browser Back walks back through the app -------------------------------------
+  // The app is one page, so without this Back leaves it entirely — usually to whatever
+  // was open before, which is never what someone three screens deep meant. Each screen
+  // change pushes a history entry; popstate puts that screen back. `restoring` stops the
+  // state we just restored from being pushed again as a new entry.
+  // NOTE: hooks must stay above the LoginScreen early return.
+  const restoring = React.useRef(false);
+  React.useEffect(() => {
+    const onPop = (e) => {
+      const st = e.state && e.state.msa;
+      restoring.current = true;
+      setPage(st ? st.page : 'dash');
+      setOpenProjectId(st ? (st.project || null) : null);
+      if (st && st.reportCode !== undefined) setReportCode(st.reportCode);
+    };
+    window.addEventListener('popstate', onPop);
+    try { window.history.replaceState({ msa: { page, project: openProjectId, reportCode } }, ''); } catch (err) {}
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  React.useEffect(() => {
+    if (restoring.current) { restoring.current = false; return; }
+    const cur = (window.history.state && window.history.state.msa) || null;
+    if (cur && cur.page === page && (cur.project || null) === (openProjectId || null)) return;
+    try { window.history.pushState({ msa: { page, project: openProjectId, reportCode } }, ''); } catch (err) {}
+  }, [page, openProjectId, reportCode]);
+
   if (!currentUser) return <LoginScreen users={users} onLogin={login} />;
 
   const openProject = openProjectId ? projects.find(x => x.id === openProjectId) : null;
@@ -1784,7 +1857,7 @@ function App() {
               onDdUpdate={onDdUpdate}
               onPhaseUpdate={onPhaseUpdate}
               onInfoUpdate={onInfoUpdate}
-              onProjectDelete={isAdmin ? onProjectDelete : null}
+              onProjectDelete={canDelete ? onProjectDelete : null}
               onGoReport={() => { console.log('PROBE goReport', openProject.code); setReportCode(openProject.code); setOpenProjectId(null); setPage('reports'); }}
             />
           ) : (
