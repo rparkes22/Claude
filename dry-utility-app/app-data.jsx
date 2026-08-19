@@ -133,6 +133,11 @@ const CITY_AGENCIES = {
   'Desert Hot Springs': ['sce', 'socalgas', 'scgt', 'citydhs', 'countyriv', 'mswd', 'hdwd', 'frontier', 'spectrum'],
   'Rancho Mirage':      ['sce', 'socalgas', 'scgt', 'cityrm', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
   'Indian Wells':       ['sce', 'socalgas', 'scgt', 'cityiw', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
+  // Morongo Basin — San Bernardino County, SCE rather than IID territory. Joshua Tree
+  // and Morongo Valley are unincorporated, so the county handles encroachment there.
+  'Yucca Valley':       ['sce', 'socalgas', 'cityyv', 'countysb', 'hdwd', 'frontier', 'spectrum'],
+  'Joshua Tree':        ['sce', 'socalgas', 'countysb', 'jbwd', 'frontier', 'spectrum'],
+  'Morongo Valley':     ['sce', 'socalgas', 'countysb', 'mvcsd', 'frontier', 'spectrum'],
 };
 const CITIES = Object.keys(CITY_AGENCIES);
 // Admin city management: added cities, per-city agency-list edits, removals (persisted)
@@ -202,6 +207,8 @@ const AGENCIES = {
   citypd:   { id: 'citypd',   name: 'City of Palm Desert',          short: 'CPD', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
   county:   { id: 'county',   name: 'County of Imperial',           short: 'CoI', kind: 'County',   note: 'Encroachment & road plan review' },
   countyriv:{ id: 'countyriv', name: 'County of Riverside',         short: 'CoR', kind: 'County',   note: 'Encroachment & road plan review' },
+  countysb: { id: 'countysb', name: 'County of San Bernardino',    short: 'CoSB', kind: 'County',  note: 'Encroachment & road plan review — unincorporated Morongo Basin' },
+  cityyv:   { id: 'cityyv',   name: 'Town of Yucca Valley',        short: 'TYV', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
   citypsp:  { id: 'citypsp',  name: 'City of Palm Springs',         short: 'CPS', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
   cityccy:  { id: 'cityccy',  name: 'City of Cathedral City',       short: 'CCC', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
   citydhs:  { id: 'citydhs',  name: 'City of Desert Hot Springs',   short: 'DHS', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
@@ -209,6 +216,8 @@ const AGENCIES = {
   cityiw:   { id: 'cityiw',   name: 'City of Indian Wells',         short: 'CIW', kind: 'Municipal', note: 'Encroachment & improvement plan review' },
   dwa:      { id: 'dwa',      name: 'Desert Water Authority',       short: 'DWA', kind: 'Water',    note: 'Water research & will-serve — Palm Springs area' },
   hdwd:     { id: 'hdwd',     name: 'Hi Desert Water District',     short: 'HDWD', kind: 'Water',   note: 'Water research & will-serve — Yucca Valley area' },
+  jbwd:     { id: 'jbwd',     name: 'Joshua Basin Water District',  short: 'JBWD', kind: 'Water',   note: 'Water research & will-serve — Joshua Tree area' },
+  mvcsd:    { id: 'mvcsd',    name: 'Morongo Valley Community Services District', short: 'MVCSD', kind: 'Water', note: 'Water research & will-serve — Morongo Valley' },
   mswd:     { id: 'mswd',     name: 'Mission Springs Water District', short: 'MSWD', kind: 'Water',  note: 'Water & sewer research — Desert Hot Springs area' },
   cvwd:     { id: 'cvwd',     name: 'Coachella Valley Water District', short: 'CVWD', kind: 'Water',  note: 'Water / drain research & will-serve — PRARequests@cvwd.org' },
   vsd:      { id: 'vsd',      name: 'Valley Sanitary District',     short: 'VSD', kind: 'Sewer',    note: 'Sewer research & capacity — 45-500 Van Buren, Indio' },
@@ -314,7 +323,7 @@ const AGENCY_TASKS = {
   ],
   sce:      [
     { id: 'sce-ear',  name: 'Electrical analysis review',    days: '8–12 wks' },
-    { id: 'sce-r20',  name: 'Rule 20 undergrounding coordination', days: 'varies' },
+    { id: 'sce-r20',  name: 'Rule 20 coordination',            days: 'varies' },
   ],
   scgt:     [
     { id: 'scgt-xng', name: 'Transmission crossing review',  days: '6–10 wks' },

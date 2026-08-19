@@ -190,6 +190,19 @@ Research module owns those.
 Coordination milestone durations live on the Utility Coordination page's **Durations**
 tab, next to the deadlines they drive.
 
+### Service areas
+
+Cities are grouped by the agencies that serve them, which is what the Add Project wizard
+offers once a city is picked. Alongside the Imperial Valley and Coachella Valley, the
+catalog covers the **Morongo Basin** — Yucca Valley, Joshua Tree and Morongo Valley. That
+corner is San Bernardino County and SCE rather than IID territory, with a water district
+each (Hi Desert, Joshua Basin, Morongo Valley CSD); Joshua Tree and Morongo Valley are
+unincorporated, so the county handles encroachment there rather than a city.
+
+SCE's **Rule 20** template is named just "Rule 20 coordination". It was "Rule 20
+undergrounding coordination", which reads too narrowly — the same rule covers mitigation
+and relocation work.
+
 ### IID: Capacity Study vs. Will Serve Letter
 
 For IID, clients often ask for a **Capacity Study Submittal** before committing to the
