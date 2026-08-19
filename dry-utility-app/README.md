@@ -34,8 +34,8 @@ Sign in with one of the demo users on the login screen.
    6-month extension is only the usual case: both the **expiry** and the **extension
    date** can be entered by hand on the WSL record, because agencies don't always follow
    the rule and sometimes grant time after the fact. A hand-entered date always wins over
-   the derived one, and the record says which it is. Project tasks live here and can be
-   given a deadline when they are created.
+   the derived one, and the record says which it is. Project tasks live here — see
+   **Tasks** below for how they are tracked.
 
    A letter can be **marked complete** once the work it authorised is done. From then on
    its clock stops mattering, so everything that chases expiry stands down: the countdown
@@ -74,6 +74,29 @@ they are complete, so a reopen writes a tombstone over it.
 
 Marking a module complete never destroys its log. Research letters, plot statuses and
 hand-off items all stay exactly as they were and come back on reopen.
+
+## Tasks
+
+A project task is a **submittal**: it goes out on a date and comes back on one. The two
+dates are **Submitted** and **Received** — there is no deadline and nothing is flagged
+"late". Agencies take as long as they take, so what the app tracks is how long a submittal
+has been out, the same way a research letter reads. Anything still out shows `Nd out`,
+turning red past 45 days, and that ageing is what drives the Team page's *Awaiting* and
+*45d+ out* counts, the dashboard ordering, and the "no response yet" notification.
+
+Every task layout is the same table — `Task · Status · Submitted · Received · Assignee` —
+with the agency riding beside the task name. The client report adds an Agency column of its
+own, having the page width for it. The table is sized to fit the project panel without
+sideways scrolling, which is what the old wrapping row of controls could not do.
+
+"A task" now means one thing everywhere: the ones people create. Retired agency
+micro-tasks were still being counted on the Team page and in the assignee dropdowns while
+the dashboard and the project panel ignored them, so the same person had two different open
+loads; the client report listed rows that appeared nowhere else in the app.
+
+Coordination-track milestones keep their own due dates — a separate system with its own
+deadlines on the Utility Coordination page — and still appear on the deadline calendar.
+Project tasks no longer do, having no deadline to appear against.
 
 ## People, roles & workload
 
@@ -127,8 +150,8 @@ The report itself carries, in order:
   where dates cluster. This mirrors the division's own tracking sheet;
 - **Will Serve**, **Utility Research**, **Existing Utility Plan** and **Utility
   Coordination**, each only when the project has them;
-- **tasks & submittals** — every dated task with status and progress, this period's
-  highlighted;
+- **tasks & submittals** — every task with status, submitted/received dates and progress,
+  this period's highlighted;
 - **notes this period** — what the team actually logged on the project, in their words.
 
 Sections are numbered from the ones that appear, so a project without coordination work

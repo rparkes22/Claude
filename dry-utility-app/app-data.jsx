@@ -690,6 +690,20 @@ const SUB_META = {
   resubmit: { cls: 'sd-resubmit', label: 'Resubmit', badge: 'b-warn' },
   none: { cls: 'sd-none', label: 'Not started', badge: 'b-gray' },
 };
+// ---- tasks ----
+// A project task is a submittal: it goes out on a date and comes back on one. What
+// matters is how long it has been out — agencies take as long as they take, so a
+// deadline and a "late" badge were never the right frame for it. This reads the same
+// way a research letter does: sent, then received.
+function taskState(t) {
+  const submitted = t.date || null;
+  const received = t.received || null;
+  const done = t.status === 'ok' || !!received;
+  const awaiting = !!submitted && !received && t.status !== 'ok';
+  const days = awaiting ? daysBetween(submitted, TODAY) : 0;
+  return { submitted, received, awaiting, done, days, stale: awaiting && days > 45 };
+}
+
 const DD_META = {
   done: { cls: 'dd-done', label: 'Complete' },
   prog: { cls: 'dd-prog', label: 'In progress' },
@@ -705,5 +719,5 @@ Object.assign(window, {
   CITY_AGENCIES, CITIES, AGENCIES, AGENCY_KINDS, AGENCY_TASKS, KIND_TASKS, tasksForAgency, tasksForKind,
   loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
   addCity, updateCityAgencies, removeCity, restoreCity, isCustomCity, isEditedCity, removedCities,
-  SEED_PROJECTS, deriveWsl, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
+  SEED_PROJECTS, deriveWsl, taskState, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
 });

@@ -1,6 +1,6 @@
 // Blueprint — Team workload view.
-// Per-user open-task load across all active projects, with overdue and
-// due-soon breakdowns and per-user task lists.
+// Per-user open-task load across all active projects, broken down by what is still out
+// with an agency awaiting a response, plus per-user task lists.
 
 function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, showToast }) {
   const [expandedUser, setExpandedUser] = React.useState(null);
@@ -14,6 +14,10 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
     const byUser = users.map(u => ({ u, tasks: [] }));
     const find = (pred) => byUser.find(pred);
     projects.forEach(p => p.tasks.forEach(t => {
+      // one definition of a project task across the app: the ones people create. Retired
+      // agency micro-tasks were still counted here while the dashboard and the project
+      // panel ignored them, so the same person had two different open loads.
+      if (!t.user) return;
       if (t.status === 'ok') return;
       const owner = t.assignee
         ? find(r => r.u.id === t.assignee)
@@ -46,14 +50,15 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
       });
     });
     byUser.forEach(r => {
-      r.overdue = r.tasks.filter(x => x.t.due && daysBetween(x.t.due, TODAY) > 0).length;
-      r.dueSoon = r.tasks.filter(x => x.t.due && daysBetween(x.t.due, TODAY) <= 0 && daysBetween(TODAY, x.t.due) <= 7).length;
+      // out with an agency and not back yet — the pressure a deadline used to stand in for
+      r.awaiting = r.tasks.filter(x => taskState(x.t).awaiting).length;
+      r.stale = r.tasks.filter(x => taskState(x.t).stale).length;
       r.resubmit = r.tasks.filter(x => x.t.status === 'resubmit').length;
       r.projects = new Set(r.tasks.map(x => x.p.id)).size;
       r.tasks.sort((a, b) => {
-        const od = (x) => x.t.due && daysBetween(x.t.due, TODAY) > 0 ? 0 : x.t.due ? 1 : 2;
+        const od = (x) => taskState(x.t).stale ? 0 : taskState(x.t).awaiting ? 1 : 2;
         if (od(a) !== od(b)) return od(a) - od(b);
-        if (a.t.due && b.t.due) return parseDate(a.t.due) - parseDate(b.t.due);
+        if (a.t.date && b.t.date) return parseDate(a.t.date) - parseDate(b.t.date);
         return 0;
       });
     });
@@ -78,9 +83,9 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
       const candidates = busiest.pool.filter(x => x.t.status !== 'resubmit');
       if (!candidates.length) break;
       candidates.sort((a, b) => {
-        if (!a.t.due && b.t.due) return -1;
-        if (a.t.due && !b.t.due) return 1;
-        if (a.t.due && b.t.due) return parseDate(b.t.due) - parseDate(a.t.due);
+        if (!a.t.date && b.t.date) return -1;
+        if (a.t.date && !b.t.date) return 1;
+        if (a.t.date && b.t.date) return parseDate(b.t.date) - parseDate(a.t.date);
         return 0;
       });
       const pick = candidates[0];
@@ -138,7 +143,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                 </div>
                 <div style={{ padding: 16, fontSize: 13, lineHeight: 1.6 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 12 }}>
-                    <thead><tr style={{ textAlign: 'left', color: 'var(--ink-3)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}><th style={{ padding: '4px 8px 4px 0' }}>Person</th><th style={{ padding: '4px 8px' }}>Open</th><th style={{ padding: '4px 8px' }}>Share</th><th style={{ padding: '4px 0' }}>Overdue</th></tr></thead>
+                    <thead><tr style={{ textAlign: 'left', color: 'var(--ink-3)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}><th style={{ padding: '4px 8px 4px 0' }}>Person</th><th style={{ padding: '4px 8px' }}>Open</th><th style={{ padding: '4px 8px' }}>Share</th><th style={{ padding: '4px 0' }}>Awaiting</th></tr></thead>
                     <tbody>
                       {(() => { const total = rows.reduce((n, r) => n + r.tasks.length, 0) || 1; return rows.map(r => {
                         return (
@@ -146,7 +151,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                             <td style={{ padding: '5px 8px 5px 0', fontWeight: 600 }}>{r.u.name}</td>
                             <td className="mono" style={{ padding: '5px 8px' }}>{r.tasks.length}</td>
                             <td className="mono" style={{ padding: '5px 8px' }}>{Math.round((r.tasks.length / total) * 100)}%</td>
-                            <td className="mono" style={{ padding: '5px 0', color: r.overdue > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{r.overdue}</td>
+                            <td className="mono" style={{ padding: '5px 0', color: r.stale > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{r.awaiting}</td>
                           </tr>
                         );
                       }); })()}
@@ -200,12 +205,12 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
               <button className="btn btn-ghost btn-sm" onClick={() => setDismissed(d => [...d, s.id])}>Dismiss</button>
             </div>
           ))}
-          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink-4)' }}>Suggestions move the least-urgent tasks (unscheduled or furthest due date; resubmittals excluded) from the busiest person to the lightest, and only while the gap is 3 tasks or more.</div>
+          <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--ink-4)' }}>Suggestions move the least-urgent tasks (not yet submitted, or most recently submitted; resubmittals excluded) from the busiest person to the lightest, and only while the gap is 3 tasks or more.</div>
         </div>
       )}
       <div className="grid-wrap">
         <table className="grid">
-          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load</th><th style={{ width: 90 }}>Overdue</th><th style={{ width: 90 }}>Due 7d</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
+          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load</th><th style={{ width: 96 }}>Awaiting</th><th style={{ width: 90 }}>45d+ out</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
           <tbody>
             {rows.map((r, ri) => (
               <React.Fragment key={r.u.id}>
@@ -227,15 +232,15 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                       return (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 320 }}>
                           <span style={{ flex: 1, height: 9, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden', position: 'relative' }}>
-                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: r.overdue > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.85 }}></span>
+                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: r.stale > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.85 }}></span>
                           </span>
                           <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tasks.length}</span>
                         </span>
                       );
                     })()}
                   </td>
-                  <td>{r.overdue > 0 ? <span className="days-chip crit">{r.overdue}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
-                  <td>{r.dueSoon > 0 ? <span className="days-chip warn">{r.dueSoon}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
+                  <td>{r.awaiting > 0 ? <span className="days-chip warn">{r.awaiting}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
+                  <td>{r.stale > 0 ? <span className="days-chip crit">{r.stale}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
                   <td>{r.resubmit > 0 ? <span className="badge b-amber"><span className="badge-dot"></span>{r.resubmit}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
                   <td className="mono" style={{ fontSize: 12.5 }}>{r.projects}</td>
                   <td style={{ textAlign: 'right', color: 'var(--ink-4)', fontSize: 11 }}>{expandedUser === r.u.id ? '⌃' : '⌄'}</td>
@@ -246,7 +251,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                       {r.tasks.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--ink-4)', padding: '8px 0' }}>No open tasks. ✓</div>}
                       {r.tasks.map(({ p, t, implicit }, i) => {
                         const m = SUB_META[t.status];
-                        const overdue = t.due && daysBetween(t.due, TODAY) > 0;
+                        const st = taskState(t);
                         return (
                           <div key={i} className="row-main" onClick={(e) => { e.stopPropagation(); onOpenProject(p.id); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderTop: i === 0 ? 'none' : '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5 }}>
                             <span className="util-tag util-iid mono">{AGENCIES[t.agency]?.short || t.agency}</span>
@@ -254,7 +259,11 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                             <span style={{ color: 'var(--ink-3)', fontSize: 11.5 }}><span className="proj-no">{p.code}</span> {p.name}</span>
                             {implicit && <span className="badge b-gray" style={{ fontSize: 9.5 }} title="Not explicitly assigned — falls to this user as project PM">via PM</span>}
                             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                              {t.due && <span className="mono" style={{ fontSize: 11.5, color: overdue ? 'var(--warn)' : 'var(--ink-3)', fontWeight: overdue ? 600 : 400 }}>due {fmtShort(t.due)}{overdue ? ` · ${daysBetween(t.due, TODAY)}d late` : ''}</span>}
+                              {st.received
+                                ? <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>received {fmtShort(st.received)}</span>
+                                : st.awaiting
+                                  ? <span className="mono" style={{ fontSize: 11.5, color: st.stale ? 'var(--warn)' : 'var(--ink-3)', fontWeight: st.stale ? 600 : 400 }}>out {st.days}d · sent {fmtShort(st.submitted)}</span>
+                                  : null}
                               <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>
                             </span>
                           </div>

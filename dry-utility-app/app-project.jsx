@@ -677,13 +677,12 @@ function ProjTimeline({ p, modules }) {
   );
 }
 
-function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskSetDate, onTaskAssign, onTaskAdd, wsl }) {
+function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAssign, onTaskAdd, wsl }) {
   const tasks = p.tasks.filter(t => t.user);
   const capStudy = deriveCapacityStudy(p.capacityStudy);
   const [adding, setAdding] = React.useState(false);
   const [name, setName] = React.useState('');
   const [pickId, setPickId] = React.useState('custom');
-  const [newDue, setNewDue] = React.useState('');
   const [newSubmitted, setNewSubmitted] = React.useState(TODAY.toISOString().slice(0, 10));
   const [editKey, setEditKey] = React.useState(null);
   const [editName, setEditName] = React.useState('');
@@ -701,14 +700,14 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
     const t = id === 'custom' ? null : findTemplate(id);
     setName(t ? t.name : '');
   };
-  const startAdd = () => { setNewSubmitted(TODAY.toISOString().slice(0, 10)); setNewDue(''); setName(''); setPickId('custom'); setAdding(true); };
+  const startAdd = () => { setNewSubmitted(TODAY.toISOString().slice(0, 10)); setName(''); setPickId('custom'); setAdding(true); };
   const save = () => {
     const n = name.trim();
     if (!n) return;
     const t = pickId === 'custom' ? null : findTemplate(pickId);
     // date = the submittal date for this task, not a bare "created on" stamp
-    onTaskAdd(p.id, { agency: t ? t.aid : null, taskId: t ? t.id : 'custom-' + Date.now(), name: n, status: 'none', date: newSubmitted || null, due: newDue || null });
-    setAdding(false); setName(''); setNewDue(''); setPickId('custom');
+    onTaskAdd(p.id, { agency: t ? t.aid : null, taskId: t ? t.id : 'custom-' + Date.now(), name: n, status: 'none', date: newSubmitted || null, received: null });
+    setAdding(false); setName(''); setPickId('custom');
   };
   if (!tasks.length && !canWrite) return null;
   return (
@@ -762,73 +761,94 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
             Submitted
             <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newSubmitted} onChange={e => setNewSubmitted(e.target.value)} title="Date this submittal went out" />
           </label>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
-            Deadline
-            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newDue} onChange={e => setNewDue(e.target.value)} title="Optional deadline for this task" />
-          </label>
           <button className="btn btn-primary btn-sm" onClick={save} disabled={!name.trim()}>Add</button>
-          <button className="btn btn-sm" onClick={() => { setAdding(false); setNewDue(''); }}>Cancel</button>
+          <button className="btn btn-sm" onClick={() => setAdding(false)}>Cancel</button>
         </div>
       )}
       {tasks.length === 0 && !adding && <div style={{ padding: 16, fontSize: 12.5, color: 'var(--ink-4)' }}>No tasks yet. Completing Utility Research adds “Existing Utility Plan” automatically.</div>}
       {tasks.length > 0 && (
-        <div style={{ padding: '4px 0' }}>
-          {tasks.map((t, i) => {
-            const m = SUB_META[t.status];
-            const overdue = t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0;
-            const u = users.find(x => x.id === t.assignee);
-            return (
-              <div key={t._key || i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderTop: i ? '1px solid var(--border)' : 'none', fontSize: 12.5, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 600, color: 'var(--ink)', flex: 1, minWidth: 140 }}>
-                  {editKey === t._key ? (
-                    <input className="input" autoFocus style={{ height: 28, fontSize: 12.5, width: '100%' }} value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { onTaskRename(p.id, t._key, editName); setEditKey(null); } if (e.key === 'Escape') setEditKey(null); }}
-                      onBlur={() => { if (editName.trim() && editName.trim() !== t.name) onTaskRename(p.id, t._key, editName); setEditKey(null); }} />
-                  ) : t.name}
-                </span>
-                {canWrite ? (
-                  <select className="select" style={{ width: 122, height: 28, fontSize: 12, paddingLeft: 8, fontWeight: 600, color: m.badge === 'b-ok' ? 'var(--ok)' : 'var(--ink-3)' }} value={t.status} onChange={e => onTaskUpdate(p.id, t._key, e.target.value)}>
-                    <option value="none">Not started</option>
-                    <option value="review">In progress</option>
-                    <option value="ok">Complete</option>
-                  </select>
-                ) : <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>}
-                {canWrite ? (
-                  <select className="select" style={{ width: 150, height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value || null)}>
-                    <option value="">Unassigned</option>
-                    {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load} open)` : ''}</option>; })}
-                  </select>
-                ) : u && <span className="meta">{u.name}</span>}
-                {canWrite ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} title="Submittal date">
-                    <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sub</span>
-                    <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: 132 }} value={t.date || ''} onChange={e => onTaskSetDate(p.id, t._key, e.target.value || null)} />
-                  </span>
-                ) : t.date && <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>submitted {fmtShort(t.date)}</span>}
-                {canWrite ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} title="Deadline">
-                    <span style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Due</span>
-                    <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: 132, borderColor: overdue ? 'var(--warn)' : 'var(--border)', color: overdue ? 'var(--warn)' : 'var(--ink-2)' }} value={t.due || ''} onChange={e => onTaskSetDue(p.id, t._key, e.target.value || null)} />
-                    {overdue && <span className="badge b-warn" style={{ fontSize: 10 }}>{daysBetween(t.due, TODAY)}d late</span>}
-                  </span>
-                ) : t.due && <span className="mono" style={{ fontSize: 11.5, color: overdue ? 'var(--warn)' : 'var(--ink-3)' }}>due {fmtShort(t.due)}</span>}
-                {canWrite && (
-                  <span style={{ display: 'inline-flex', gap: 2 }}>
-                    <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px' }} title="Rename" onClick={() => { setEditKey(t._key); setEditName(t.name); }}><ProjIcon name="edit" size={11} /></button>
-                    <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px', color: 'var(--warn)' }} title="Delete" onClick={() => { if (window.confirm(`Delete task “${t.name}”?`)) onTaskDelete(p.id, t._key); }}><ProjIcon name="x" size={10} /></button>
-                  </span>
-                )}
-              </div>
-            );
-          })}
+        <div style={{ overflowX: 'auto' }}>
+          {/* Same table shape as the research log — a submittal goes out and comes back,
+              and the columns line up so a run of tasks scans down instead of wrapping. */}
+          <table className="task-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ paddingLeft: 16 }}>Task</th>
+                {/* Status needs room for "Not started" unclipped; the rest are date
+                    inputs and a name, which are narrower */}
+                <th style={{ width: 132 }}>Status</th>
+                <th style={{ width: 124 }}>Submitted</th>
+                <th style={{ width: 124 }}>Received</th>
+                <th style={{ width: 124 }}>Assignee</th>
+                {canWrite && <th style={{ width: 54, paddingRight: 16 }}></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t, i) => {
+                const m = SUB_META[t.status];
+                const st = taskState(t);
+                const u = users.find(x => x.id === t.assignee);
+                const a = t.agency ? AGENCIES[t.agency] : null;
+                return (
+                  <tr key={t._key || i}>
+                    <td style={{ paddingLeft: 16, fontWeight: 600, color: 'var(--ink)', minWidth: 170 }}>
+                      {editKey === t._key ? (
+                        <input className="input" autoFocus style={{ height: 28, fontSize: 12.5, width: '100%' }} value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { onTaskRename(p.id, t._key, editName); setEditKey(null); } if (e.key === 'Escape') setEditKey(null); }}
+                          onBlur={() => { if (editName.trim() && editName.trim() !== t.name) onTaskRename(p.id, t._key, editName); setEditKey(null); }} />
+                      ) : <>
+                        {t.name}
+                        {a && <span className="util-tag util-iid mono" style={{ marginLeft: 7, fontWeight: 500 }}>{a.short}</span>}
+                      </>}
+                    </td>
+                    <td>
+                      {canWrite ? (
+                        <select className="select" style={{ width: '100%', height: 28, fontSize: 12, paddingLeft: 8, fontWeight: 600, color: m.badge === 'b-ok' ? 'var(--ok)' : 'var(--ink-3)' }} value={t.status} onChange={e => onTaskUpdate(p.id, t._key, e.target.value)}>
+                          <option value="none">Not started</option>
+                          <option value="review">In progress</option>
+                          <option value="ok">Complete</option>
+                        </select>
+                      ) : <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>}
+                    </td>
+                    <td>
+                      {canWrite
+                        ? <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: '100%' }} value={t.date || ''} onChange={e => onTaskSetDate(p.id, t._key, e.target.value || null)} title="Date this submittal went out" />
+                        : <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t.date ? fmtShort(t.date) : '—'}</span>}
+                    </td>
+                    <td>
+                      {canWrite
+                        ? <input type="date" className="input" style={{ height: 28, fontSize: 11.5, width: '100%' }} value={t.received || ''} onChange={e => onTaskSetReceived(p.id, t._key, e.target.value || null)} title="Date the response came back" />
+                        : <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t.received ? fmtShort(t.received) : '—'}</span>}
+                      {/* how long it has been out is the signal, not a deadline */}
+                      {st.awaiting && <div><span className={`badge ${st.stale ? 'b-warn' : 'b-amber'}`} style={{ fontSize: 9.5, marginTop: 3 }}><span className="badge-dot"></span>{st.days}d out</span></div>}
+                    </td>
+                    <td>
+                      {canWrite ? (
+                        <select className="select" style={{ width: '100%', height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value || null)}>
+                          <option value="">Unassigned</option>
+                          {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load} open)` : ''}</option>; })}
+                        </select>
+                      ) : <span style={{ color: u ? 'var(--ink-2)' : 'var(--ink-4)' }}>{u ? u.name : 'Unassigned'}</span>}
+                    </td>
+                    {canWrite && (
+                      <td style={{ paddingRight: 16, whiteSpace: 'nowrap' }}>
+                        <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px' }} title="Rename" onClick={() => { setEditKey(t._key); setEditName(t.name); }}><ProjIcon name="edit" size={11} /></button>
+                        <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px', color: 'var(--warn)' }} title="Delete" onClick={() => { if (window.confirm(`Delete task \u201c${t.name}\u201d?`)) onTaskDelete(p.id, t._key); }}><ProjIcon name="x" size={10} /></button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetDue, onTaskSetDate, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
+function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
   const wd = deriveWsl(p.wsl);
   const [letterGenOpen, setLetterGenOpen] = React.useState(false);
   const [infoEditOpen, setInfoEditOpen] = React.useState(false);
@@ -1066,7 +1086,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
 
           {modules.coordination && <CoordModule p={p} canWrite={canWrite} currentUser={currentUser} users={users} />}
 
-          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetDue={onTaskSetDue} onTaskSetDate={onTaskSetDate} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
+          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetReceived={onTaskSetReceived} onTaskSetDate={onTaskSetDate} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
 
           <div className="panel">
             <div className="panel-hd"><h2>Notes &amp; activity</h2><span className="meta">{activity.length} entries</span></div>

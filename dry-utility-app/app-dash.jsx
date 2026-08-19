@@ -32,9 +32,9 @@ function DeadlineCalendar({ projects, onOpenProject }) {
         next.setDate(next.getDate() + (p.reporting.cadence === 'Weekly' ? 7 : 14));
         push(next, { kind: 'report', sev: 'info', label: `${p.reporting.cadence} report due — ${projLabel(p)}`, pid: p.id });
       }
-      p.tasks.forEach(t => {
-        if (t.user && t.due && t.status !== 'ok') push(t.due, { kind: 'task', sev: daysBetween(t.due, TODAY) > 0 ? 'crit' : 'warn', label: `${t.name} due — ${projLabel(p)}`, pid: p.id });
-      });
+      // Project tasks track submitted/received rather than a deadline, so they are not
+      // calendar entries any more. Coordination milestones below still carry due dates.
+
       // coordination track milestone deadlines (unlogged, with a due date)
       if (typeof cmLoad === 'function' && typeof CM_MILESTONES !== 'undefined') {
         const cmd = cmLoad()[p.id];
@@ -127,7 +127,6 @@ function DeadlineCalendar({ projects, onOpenProject }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--amber)' }}></span>1-yr mark / warning</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok)' }}></span>WSL expiry (clear)</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: 2, background: 'var(--blue)' }}></span>Client report due</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: 2, background: 'var(--amber)' }}></span>Task due</span>
         </div>
       </div>
     </div>
@@ -152,9 +151,9 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
     if (waiting.length) myTasks.push({ p, t: { name: `Utility research follow-up — ${waiting.length} letter${waiting.length === 1 ? '' : 's'} outstanding`, status: 'review', due: null, research: true } });
   });
   myTasks.sort((a, b) => {
-    const od = (x) => x.t.due && daysBetween(x.t.due, TODAY) > 0 ? 0 : x.t.due ? 1 : x.t.status === 'resubmit' ? 2 : 3;
+    const od = (x) => taskState(x.t).stale ? 0 : taskState(x.t).awaiting ? 1 : x.t.status === 'resubmit' ? 2 : 3;
     if (od(a) !== od(b)) return od(a) - od(b);
-    if (a.t.due && b.t.due) return parseDate(a.t.due) - parseDate(b.t.due);
+    if (a.t.date && b.t.date) return parseDate(a.t.date) - parseDate(b.t.date);
     return 0;
   });
   const reportsDue = projects.filter(p => p.reporting.lastSent && daysBetween(p.reporting.lastSent, TODAY) >= (p.reporting.cadence === 'Weekly' ? 7 : 14));
@@ -197,14 +196,14 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
 
   // team workload summary (mirrors the Team page ownership rule)
   const workload = React.useMemo(() => {
-    const rows = (users || []).map(u => ({ u, open: 0, overdue: 0 }));
+    const rows = (users || []).map(u => ({ u, open: 0, awaiting: 0 }));
     projects.forEach(p => p.tasks.forEach(t => {
       if (!t.user) return;
       if (t.status === 'ok') return;
       const r = t.assignee ? rows.find(x => x.u.id === t.assignee) : rows.find(x => x.u.initials === p.pm);
       if (!r) return;
       r.open++;
-      if (t.due && daysBetween(t.due, TODAY) > 0) r.overdue++;
+      if (taskState(t).awaiting) r.awaiting++;
     }));
     // research letters count toward Domonique's load
     const dm = rows.find(x => x.u.id === 'u2');
@@ -248,16 +247,16 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
               {myTasks.slice(0, 10).map(({ p, t }, i) => {
                 const m = SUB_META[t.status];
-                const overdue = t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0;
+                const st = taskState(t);
                 return (
                   <div key={i} onClick={() => onOpenProject(p.id)} className="row-main" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5, minWidth: 0 }}>
                     <span className="util-tag util-iid mono">{AGENCIES[t.agency]?.short || t.agency}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}><span className="proj-no">{p.code}</span> {p.name}{t.due ? ` · due ${fmtShort(t.due)}` : ''}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-3)' }}><span className="proj-no">{p.code}</span> {p.name}{st.submitted ? ` · submitted ${fmtShort(st.submitted)}` : ''}</div>
                     </div>
-                    {overdue
-                      ? <span className="days-chip crit">{daysBetween(t.due, TODAY)}d late</span>
+                    {st.awaiting
+                      ? <span className={`days-chip ${st.stale ? 'crit' : 'warn'}`}>{st.days}d out</span>
                       : <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>}
                   </div>
                 );
@@ -329,15 +328,15 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
             <button className="btn btn-ghost btn-sm" onClick={() => onGoPage('team')}>View team</button>
           </div>
           <div style={{ padding: '12px 16px 14px' }}>
-            {workload.map(({ u, open, overdue }) => (
+            {workload.map(({ u, open, awaiting }) => (
               <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
                 <span className="avatar" style={{ width: 22, height: 22, background: 'var(--primary)', fontSize: 9, borderRadius: '50%', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 600, flexShrink: 0 }}>{u.initials}</span>
                 <span style={{ fontSize: 12.5, width: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
                 <div style={{ flex: 1, height: 8, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden' }}>
-                  <div style={{ width: `${(open / maxLoad) * 100}%`, height: '100%', background: overdue > 0 ? 'var(--warn)' : 'var(--primary)', opacity: 0.75, borderRadius: 100 }}></div>
+                  <div style={{ width: `${(open / maxLoad) * 100}%`, height: '100%', background: awaiting > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.75, borderRadius: 100 }}></div>
                 </div>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', width: 20, textAlign: 'right' }}>{open}</span>
-                {overdue > 0 ? <span className="days-chip crit" style={{ flexShrink: 0 }}>{overdue} late</span> : <span style={{ width: 0 }}></span>}
+                {awaiting > 0 ? <span className="days-chip warn" style={{ flexShrink: 0 }}>{awaiting} out</span> : <span style={{ width: 0 }}></span>}
               </div>
             ))}
           </div>

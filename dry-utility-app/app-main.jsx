@@ -771,7 +771,7 @@ function projectMilestones(project, wd) {
   // the arc starts at the contract — without it a project whose submittals all went out
   // on one day has nothing to span
   if (project.contractDate) ms.push({ date: project.contractDate, name: 'Contract executed', pct: 1, kind: 'contract' });
-  project.tasks.filter(t => t.date).forEach(t => ms.push({
+  project.tasks.filter(t => t.user && t.date).forEach(t => ms.push({
     // agency-qualified, or several agencies' copies of the same submittal collapse into
     // one indistinguishable marker on the same date
     date: t.date,
@@ -1018,15 +1018,18 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
     // Every dated task on the project, so the client sees the whole workload and not
     // only what happened to move this fortnight. In-period rows are marked so the
     // report can call them out without hiding the rest.
-    const tasks = project.tasks.filter(t => t.name).map(t => ({
+    // the same set the project's Project tasks panel shows. The report was the one place
+    // still listing retired agency micro-tasks, so it showed rows nobody could see or edit
+    // anywhere else in the app.
+    const tasks = project.tasks.filter(t => t.user && t.name).map(t => ({
       name: t.name,
       agency: t.agency ? (AGENCIES[t.agency]?.short || t.agency) : '—',
       status: SUB_META[t.status] ? SUB_META[t.status].label : 'Not started',
       badge: SUB_META[t.status] ? SUB_META[t.status].badge : 'b-gray',
       pct: TASK_PCT[t.status] == null ? 0 : TASK_PCT[t.status],
       date: t.date ? fmtShort(t.date) : null,
-      due: t.due ? fmtShort(t.due) : null,
-      overdue: !!(t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0),
+      received: t.received ? fmtShort(t.received) : null,
+      awaiting: taskState(t).awaiting ? taskState(t).days : 0,
       owner: (users.find(u => u.id === t.assignee) || {}).name || null,
       recent: inPeriod(t.date),
     }));
@@ -1231,15 +1234,15 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
               <div style={{ fontSize: 12.5, color: 'var(--ink-4)' }}>No tasks recorded on this project yet.</div>
             ) : (
               <table className="rp-table">
-                <thead><tr><th>Task</th><th>Agency</th><th>Submitted</th><th>Due</th><th>Status</th><th style={{ textAlign: 'right' }}>Progress</th></tr></thead>
+                <thead><tr><th>Task</th><th>Agency</th><th>Status</th><th>Submitted</th><th>Received</th><th style={{ textAlign: 'right' }}>Progress</th></tr></thead>
                 <tbody>
                   {shown.tasks.map((t, i) => (
                     <tr key={i} className={t.recent ? 'hl' : ''}>
                       <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.name}{t.owner ? <span className="rp-owner">{t.owner}</span> : null}</td>
                       <td>{t.agency}</td>
-                      <td className="mono">{t.date || '—'}</td>
-                      <td className="mono" style={t.overdue ? { color: 'var(--warn)', fontWeight: 700 } : null}>{t.due || '—'}</td>
                       <td><span className={`badge ${t.badge}`}><span className="badge-dot"></span>{t.status}</span></td>
+                      <td className="mono">{t.date || '—'}</td>
+                      <td className="mono">{t.received || (t.awaiting ? <span style={{ color: 'var(--amber-ink)' }}>out {t.awaiting}d</span> : '—')}</td>
                       <td style={{ textAlign: 'right' }}>
                         <span className="rp-bar"><span className="rp-bar-fill" style={{ width: `${Math.round(t.pct * 100)}%`, background: t.pct >= 1 ? 'var(--ok)' : 'var(--amber)' }}></span></span>
                       </td>
@@ -1376,7 +1379,10 @@ function buildNotifications(projects) {
       }
     }
     p.tasks.forEach(t => {
-      if (t.due && t.status !== 'ok' && daysBetween(t.due, TODAY) > 0) out.push({ id: `due-${p.id}-${t._key || t.taskId}`, pid: p.id, sev: 'warn', icon: 'clock', title: `Task overdue — ${t.name}`, sub: `${p.name} · due ${fmtShort(t.due)} · ${daysBetween(t.due, TODAY)}d late`, ts: t.due });
+      // a submittal that has been out a long time with no response is the thing worth
+      // surfacing; tasks carry no deadline to be late against
+      const ts = taskState(t);
+      if (ts.stale) out.push({ id: `out-${p.id}-${t._key || t.taskId}`, pid: p.id, sev: 'warn', icon: 'clock', title: `No response yet — ${t.name}`, sub: `${p.name} · submitted ${fmtShort(ts.submitted)} · ${ts.days} days out`, ts: ts.submitted });
     });
     // Capacity study still out past its typical turnaround — chase IID.
     const cs = deriveCapacityStudy(p.capacityStudy);
@@ -1701,10 +1707,12 @@ function App() {
     showToast(date ? `Submittal date set — ${fmt(date)}` : 'Submittal date cleared');
   };
 
-  const onTaskSetDue = (pid, taskKey, due) => {
+  // A submittal comes back on a date; how long it has been out is what the app tracks,
+  // so tasks carry sent/received rather than a deadline and a "late" flag.
+  const onTaskSetReceived = (pid, taskKey, received) => {
     if (!canWrite) return;
-    patchTask(pid, taskKey, { due: due || null });
-    showToast(due ? `Due date set — ${fmt(due)}` : 'Due date cleared');
+    patchTask(pid, taskKey, { received: received || null });
+    showToast(received ? `Response received — ${fmt(received)}` : 'Received date cleared');
   };
 
   const onTaskAssign = (pid, taskKey, userId) => {
@@ -1746,6 +1754,7 @@ function App() {
     const map = {};
     users.forEach(u => { map[u.id] = { load: 0 }; });
     projects.filter(x => x.phase !== 'Complete').forEach(pr => pr.tasks.forEach(t => {
+      if (!t.user) return;   // same set the Team page and the project panel count
       if (t.status === 'ok') return;
       const u = t.assignee ? users.find(x => x.id === t.assignee) : users.find(x => x.initials === pr.pm);
       if (u && map[u.id]) map[u.id].load++;
@@ -1850,7 +1859,7 @@ function App() {
               onCapacityEdit={onCapacityEdit}
               onTaskUpdate={onTaskUpdate}
               onTaskRename={onTaskRename}
-              onTaskSetDue={onTaskSetDue}
+              onTaskSetReceived={onTaskSetReceived}
               onTaskSetDate={onTaskSetDate}
               onTaskDelete={onTaskDelete}
               onTaskAdd={onTaskAdd}
