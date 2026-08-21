@@ -1,0 +1,21 @@
+# Fly.io config for the MSA Dry Utility App (static site served by nginx).
+# Deploy from this directory with:
+#   fly auth login
+#   fly launch --copy-config --yes   # first time (creates the app)
+#   fly deploy                       # subsequent deploys
+app = "msa-dry-utility-app"
+primary_region = "lax"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
