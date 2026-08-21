@@ -89,8 +89,9 @@ A project task is a **submittal**: it goes out on a date and comes back on one. 
 dates are **Submitted** and **Received** — there is no deadline and nothing is flagged
 "late". Agencies take as long as they take, so what the app tracks is how long a submittal
 has been out, the same way a research letter reads. Anything still out shows `Nd out`,
-turning red past 45 days, and that ageing is what drives the Team page's *Awaiting* and
-*45d+ out* counts, the dashboard ordering, and the "no response yet" notification.
+turning red past 45 days on the project's own task table, and that ageing drives the
+ordering of a person's work and the "no response yet" notification. It does not colour
+the workload views — see **People, roles & workload**.
 
 Every task layout is the same table — `Task · Status · Submitted · Received · Assignee` —
 with the agency riding beside the task name. The client report adds an Agency column of its
