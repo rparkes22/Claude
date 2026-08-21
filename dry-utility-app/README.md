@@ -28,6 +28,14 @@ Sign in with one of the demo users on the login screen.
    back (both editable), or can be closed out as **No response** when an agency never
    replies. No-response agencies are excluded from outstanding-letter counts and are
    marked N/A on the Existing Utility Plan.
+   A utility can be **added after the fact** from the research panel — a service nobody
+   knew reached the site, or one the client adds later. Pick it, give the date the request
+   went out, and it joins the log ageing from that date. The list is the whole agency
+   directory rather than the letter address book, which only covers the Imperial and
+   Coachella agencies and would offer nothing on a Morongo Basin project; agencies with no
+   letter contact on file are offered and say so. The agency joins the project too, so its
+   coordination templates and the Existing Utility Plan pick it up rather than it living
+   only in the research log.
 3. **Existing Utility Plan** — created automatically once every letter is resolved;
    plots each responding agency's facilities and tracks the deliverable through QC.
 4. **Utility Coordination** — driven by the Will Serve Letter. A year from issue with a
@@ -116,6 +124,11 @@ Every project carries an **MSA project manager**, set at creation (defaulting to
 is creating it) and editable afterwards. The PM drives task ownership on the Team page and
 is named on the client report.
 
+Workload is a count of work, not a chase list: open load, how much is out with an agency
+awaiting a response, and resubmittals. Nothing on it is coloured as an alarm and nothing is
+flagged late — how long a submittal has been out is shown where you act on it, on the
+project's task table.
+
 There is **no per-person task cap**. Load is uneven by design — the division manager
 carries a large share — so workload bars are scaled against the busiest person, nobody is
 flagged "over capacity", and an assignment is never blocked. Rebalancing suggestions key
@@ -147,7 +160,9 @@ The report itself carries, in order:
 - the **project timeline** — milestones (dated submittals, module completions, the Will
   Serve dates, contract execution) on one horizontal run of time, markers coloured by
   progress and labels alternating above and below, stacking outward into a second tier
-  where dates cluster. This mirrors the division's own tracking sheet;
+  where dates cluster. This mirrors the division's own tracking sheet. Dates are
+  all-numeric with the year (`08/21/26`, `fmtNum`) — a timeline spanning years can't say
+  "Aug 21" and be read unambiguously;
 - **Will Serve**, **Utility Research**, **Existing Utility Plan** and **Utility
   Coordination**, each only when the project has them;
 - **tasks & submittals** — every task with status, submitted/received dates and progress,

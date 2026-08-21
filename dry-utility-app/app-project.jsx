@@ -321,7 +321,7 @@ function ContractsPanel({ p, canWrite, currentUser }) {
 // ---- utility research module (letters → jurisdiction verification log) ----
 const RESEARCH_TASK_RE = /utility research|research request/i;
 const hasResearchTask = (p) => p.tasks.some(t => RESEARCH_TASK_RE.test(t.name));
-function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
+function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd, onInfoUpdate }) {
   const RES_KEY = 'msa_app_research_v1';
   const load = () => { try { return JSON.parse(localStorage.getItem(RES_KEY)) || {}; } catch (e) { return {}; } };
   const [ov, setOv] = React.useState(load); // { projectId: { rowId: receivedDate|null } }
@@ -336,6 +336,12 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
     const all = loadAddedResearch();
     persistAddedResearch({ ...all, [p.id]: (all[p.id] || []).filter(r => r.id !== id) });
   };
+  // A utility often turns up after the first batch of letters has gone out — a service
+  // nobody knew served the site, or one the client adds later. Logging it here beats
+  // regenerating the whole letter run just to get one more row into the tracker.
+  const [addingUtil, setAddingUtil] = React.useState(false);
+  const [newUtil, setNewUtil] = React.useState('');
+  const [newUtilSent, setNewUtilSent] = React.useState(TODAY.toISOString().slice(0, 10));
   const [fu, setFu] = React.useState(() => loadResearchFu()[p.id] || {});
   const logFu = (r) => {
     const all = loadResearchFu();
@@ -397,6 +403,43 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
   };
   const jurOf = (r) => (jur[p.id] || {})[r.id] || null;
   const catOf = (label) => (label.split(/\(|—|\//)[0] || label).trim();
+  // Any agency in the directory can be researched, not just the ones with a letter
+  // contact on file — the address book covers the Imperial/Coachella set and would
+  // otherwise offer nothing at all on, say, a Morongo Basin project. Where a contact
+  // does exist it supplies the label and the address the request went to.
+  const utilOptions = React.useMemo(() => {
+    const book = typeof getLetterRecipients === 'function' ? getLetterRecipients() : [];
+    const taken = new Set(rows.map(r => r.agency));
+    return Object.values(AGENCIES)
+      .filter(a => !taken.has(a.id))
+      .map(a => {
+        const rec = book.find(b => b.agency === a.id);
+        return { id: a.id, agency: a.id, name: a.name, kind: a.kind || 'Other', label: rec ? rec.label : a.name, email: rec ? rec.email : '' };
+      })
+      .sort((x, y) => x.kind.localeCompare(y.kind) || x.name.localeCompare(y.name));
+  }, [rows, addingUtil]);
+  const utilGroups = React.useMemo(() => {
+    const g = {};
+    utilOptions.forEach(o => { (g[o.kind] = g[o.kind] || []).push(o); });
+    return Object.keys(g).sort().map(k => ({ kind: k, items: g[k] }));
+  }, [utilOptions]);
+  const addUtility = () => {
+    const rec = utilOptions.find(b => b.id === newUtil);
+    if (!rec) return;
+    const all = loadAddedResearch();
+    const row = {
+      id: 'ra-' + Date.now(), agency: rec.agency, label: rec.label,
+      sent: newUtilSent || TODAY.toISOString().slice(0, 10), received: null,
+      to: rec.email, file: null, logged: true, owner: 'u2',
+    };
+    persistAddedResearch({ ...all, [p.id]: [...(all[p.id] || []), row] });
+    // bring the agency onto the project too, so coordination templates and the plan
+    // module see it rather than it living only in the research log
+    if (onInfoUpdate && rec.agency && !(p.agencies || []).includes(rec.agency)) {
+      onInfoUpdate(p.id, { agencies: [...(p.agencies || []), rec.agency] });
+    }
+    setAddingUtil(false); setNewUtil('');
+  };
   const toggle = (r) => patchRow(r, r.received ? { received: null } : { received: TODAY.toISOString().slice(0, 10), noResponse: false });
   const toggleNoResponse = (r) => patchRow(r, r.noResponse ? { noResponse: false } : { noResponse: true, received: null });
   return (
@@ -405,9 +448,29 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd }) {
         <h2>Utility research <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--ink-4)' }}>— jurisdiction verification</span></h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="meta">{rows.length ? `${receivedCount}/${rows.length} received${noRespCount ? ` · ${noRespCount} no response` : ''}${done < rows.length ? ` · ${daysBetween(rows[0].sent, TODAY)}d since letters sent` : ''}` : 'no letters yet'}</span>
+          {canWrite && !addingUtil && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={() => { setNewUtilSent(TODAY.toISOString().slice(0, 10)); setNewUtil(''); setAddingUtil(true); }}>+ Add utility</button>}
           {canWrite && onGenerate && <button className="btn btn-ghost btn-sm" style={{ height: 24, fontSize: 11 }} onClick={onGenerate}>Generate letters</button>}
         </div>
       </div>
+      {addingUtil && (
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-tint)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select className="select" autoFocus style={{ width: 'auto', minWidth: 240, height: 30, fontSize: 12.5 }} value={newUtil} onChange={e => setNewUtil(e.target.value)}>
+            <option value="">Select a utility…</option>
+            {utilGroups.map(g => (
+              <optgroup key={g.kind} label={g.kind}>
+                {g.items.map(b => <option key={b.id} value={b.id}>{b.name}{b.email ? '' : ' — no letter contact on file'}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+            Letter sent
+            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newUtilSent} onChange={e => setNewUtilSent(e.target.value)} title="Date the request went out" />
+          </label>
+          <button className="btn btn-primary btn-sm" onClick={addUtility} disabled={!newUtil}>Add</button>
+          <button className="btn btn-sm" onClick={() => setAddingUtil(false)}>Cancel</button>
+          {utilOptions.length === 0 && <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Every utility in the contact book is already on this project.</span>}
+        </div>
+      )}
       <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--ink-3)', flexWrap: 'wrap' }}>
         <ProjIcon name="clock" size={12} />
         <span>Typical duration: <b style={{ color: 'var(--ink-2)' }}>6–8 weeks from contract execution</b>{rows.length > 0 && !researchComplete ? <span className="mono" style={{ marginLeft: 6 }}>· week {Math.max(1, Math.ceil(daysBetween(rows[rows.length - 1].sent, TODAY) / 7))} since letters went out</span> : ''}</span>
@@ -1080,7 +1143,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <ModulesPanel p={p} modules={modules} done={moduleDone} canWrite={canWrite} onToggle={toggleModule} onComplete={completeModule} onReopen={reopenModule} />
 
-          {modules.research && <ResearchPanel key={p.id} p={p} canWrite={canWrite} onGenerate={() => setLetterGenOpen(true)} onEditInfo={() => setInfoEditOpen(true)} onTaskAdd={onTaskAdd} />}
+          {modules.research && <ResearchPanel key={p.id} p={p} canWrite={canWrite} onGenerate={() => setLetterGenOpen(true)} onEditInfo={() => setInfoEditOpen(true)} onTaskAdd={onTaskAdd} onInfoUpdate={onInfoUpdate} />}
 
           {modules.eub && <EubModule p={p} canWrite={canWrite} />}
 

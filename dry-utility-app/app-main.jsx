@@ -796,7 +796,7 @@ function projectMilestones(project, wd) {
   return ms
     .filter(m => { const k = `${fmtShort(m.date)}|${m.name}`; if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((a, b) => parseDate(a.date) - parseDate(b.date))
-    .map(m => ({ ...m, iso: parseDate(m.date).toISOString().slice(0, 10), label: fmtShort(m.date) }));
+    .map(m => ({ ...m, iso: parseDate(m.date).toISOString().slice(0, 10), label: fmtNum(m.date) }));
 }
 
 // Milestone timeline, drawn the way the division's tracking sheet does it: one horizontal

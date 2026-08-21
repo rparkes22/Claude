@@ -333,10 +333,11 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
                 <span className="avatar" style={{ width: 22, height: 22, background: 'var(--primary)', fontSize: 9, borderRadius: '50%', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 600, flexShrink: 0 }}>{u.initials}</span>
                 <span style={{ fontSize: 12.5, width: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
                 <div style={{ flex: 1, height: 8, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden' }}>
-                  <div style={{ width: `${(open / maxLoad) * 100}%`, height: '100%', background: awaiting > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.75, borderRadius: 100 }}></div>
+                  <div style={{ width: `${(open / maxLoad) * 100}%`, height: '100%', background: 'var(--primary)', opacity: 0.75, borderRadius: 100 }}></div>
                 </div>
                 <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', width: 20, textAlign: 'right' }}>{open}</span>
-                {awaiting > 0 ? <span className="days-chip warn" style={{ flexShrink: 0 }}>{awaiting} out</span> : <span style={{ width: 0 }}></span>}
+                {/* workload is a count of work, not a warning */}
+                {awaiting > 0 ? <span className="mono" style={{ fontSize: 11, color: 'var(--ink-4)', flexShrink: 0 }}>{awaiting} out</span> : <span style={{ width: 0 }}></span>}
               </div>
             ))}
           </div>

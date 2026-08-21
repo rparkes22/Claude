@@ -151,7 +151,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                             <td style={{ padding: '5px 8px 5px 0', fontWeight: 600 }}>{r.u.name}</td>
                             <td className="mono" style={{ padding: '5px 8px' }}>{r.tasks.length}</td>
                             <td className="mono" style={{ padding: '5px 8px' }}>{Math.round((r.tasks.length / total) * 100)}%</td>
-                            <td className="mono" style={{ padding: '5px 0', color: r.stale > 0 ? 'var(--warn)' : 'var(--ink-3)' }}>{r.awaiting}</td>
+                            <td className="mono" style={{ padding: '5px 0', color: 'var(--ink-3)' }}>{r.awaiting}</td>
                           </tr>
                         );
                       }); })()}
@@ -210,7 +210,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
       )}
       <div className="grid-wrap">
         <table className="grid">
-          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load</th><th style={{ width: 96 }}>Awaiting</th><th style={{ width: 90 }}>45d+ out</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
+          <thead><tr><th style={{ width: 220 }}>Team member</th><th>Open load</th><th style={{ width: 96 }}>Awaiting</th><th style={{ width: 90 }}>Resubmit</th><th style={{ width: 90 }}>Projects</th><th style={{ width: 60 }}></th></tr></thead>
           <tbody>
             {rows.map((r, ri) => (
               <React.Fragment key={r.u.id}>
@@ -232,15 +232,16 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                       return (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 320 }}>
                           <span style={{ flex: 1, height: 9, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden', position: 'relative' }}>
-                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: r.stale > 0 ? 'var(--amber)' : 'var(--primary)', opacity: 0.85 }}></span>
+                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 100, background: 'var(--primary)', opacity: 0.85 }}></span>
                           </span>
                           <span className="mono" style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{r.tasks.length}</span>
                         </span>
                       );
                     })()}
                   </td>
-                  <td>{r.awaiting > 0 ? <span className="days-chip warn">{r.awaiting}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
-                  <td>{r.stale > 0 ? <span className="days-chip crit">{r.stale}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
+                  {/* a plain count: how much is out with an agency, not an alarm. Chasing
+                      belongs where the work is, on the project's task table. */}
+                  <td className="mono" style={{ color: r.awaiting > 0 ? 'var(--ink-2)' : 'var(--ink-4)' }}>{r.awaiting || '—'}</td>
                   <td>{r.resubmit > 0 ? <span className="badge b-amber"><span className="badge-dot"></span>{r.resubmit}</span> : <span style={{ color: 'var(--ink-4)' }}>—</span>}</td>
                   <td className="mono" style={{ fontSize: 12.5 }}>{r.projects}</td>
                   <td style={{ textAlign: 'right', color: 'var(--ink-4)', fontSize: 11 }}>{expandedUser === r.u.id ? '⌃' : '⌄'}</td>
@@ -262,7 +263,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
                               {st.received
                                 ? <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>received {fmtShort(st.received)}</span>
                                 : st.awaiting
-                                  ? <span className="mono" style={{ fontSize: 11.5, color: st.stale ? 'var(--warn)' : 'var(--ink-3)', fontWeight: st.stale ? 600 : 400 }}>out {st.days}d · sent {fmtShort(st.submitted)}</span>
+                                  ? <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>out {st.days}d · sent {fmtShort(st.submitted)}</span>
                                   : null}
                               <span className={`badge ${m.badge}`}><span className="badge-dot"></span>{m.label}</span>
                             </span>

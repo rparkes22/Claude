@@ -30,6 +30,9 @@ const addDays = (d, n) => { const x = parseDate(d); x.setDate(x.getDate() + n); 
 const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
 const fmt = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const fmtShort = (d) => parseDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// All-numeric with the year — 08/21/26. The report timeline spans years, so "Aug 21"
+// alone is ambiguous once a project runs past its first.
+const fmtNum = (d) => parseDate(d).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
 
 // ===== USERS & ROLES =====
 // admin   — full access, including users & permissions
@@ -721,7 +724,7 @@ const DD_META = {
 };
 
 Object.assign(window, {
-  TODAY, parseDate, addYears, addMonths, daysBetween, fmt, fmtShort,
+  TODAY, parseDate, addYears, addMonths, daysBetween, fmt, fmtShort, fmtNum,
   SEED_USERS, ROLE_META, PERMS, can,
   backdropClose, projLabel,
   loadUsers, persistUsers, loadSession, persistSession, loadUserProjects, persistUserProjects,
