@@ -15,6 +15,19 @@ function AuthIcon({ name, size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={p} /></svg>;
 }
 
+// Microsoft's mark, drawn inline — the login screen has no network dependency, and this
+// keeps it that way.
+function MsLogo({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="0" y="0" width="7" height="7" fill="#f25022" />
+      <rect x="9" y="0" width="7" height="7" fill="#7fba00" />
+      <rect x="0" y="9" width="7" height="7" fill="#00a4ef" />
+      <rect x="9" y="9" width="7" height="7" fill="#ffb900" />
+    </svg>
+  );
+}
+
 const userColor = (s) => {
   const palette = ['#1d4e89', '#0f766e', '#7c3aed', '#b45309', '#15803d', '#be185d'];
   let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0;
@@ -29,10 +42,16 @@ function RoleBadge({ role }) {
 }
 
 // ===== LOGIN =====
+// Microsoft is the way in; the email form is a fallback kept behind a link so a broken
+// Entra registration can't lock everyone out of their own app. The fallback does not
+// verify anything, so it is labelled as what it is.
 function LoginScreen({ users, onLogin }) {
+  const sso = typeof MSA_AUTH !== 'undefined' && MSA_AUTH.configured();
   const [email, setEmail] = React.useState('');
   const [pw, setPw] = React.useState('');
-  const [err, setErr] = React.useState(null);
+  const [err, setErr] = React.useState(() => (sso && MSA_AUTH.error()) || null);
+  const [showFallback, setShowFallback] = React.useState(!sso);
+  const [going, setGoing] = React.useState(false);
 
   const submit = (e) => {
     e.preventDefault();
@@ -41,6 +60,7 @@ function LoginScreen({ users, onLogin }) {
     if (!pw.trim()) { setErr('Enter your password.'); return; }
     onLogin(u);
   };
+  const startSso = () => { setErr(null); setGoing(true); MSA_AUTH.signIn(); };
 
   return (
     <div className="login-wrap">
@@ -54,7 +74,25 @@ function LoginScreen({ users, onLogin }) {
         </div>
         <h2 className="login-h">Sign in to continue</h2>
         {err && <div className="login-err">{err}</div>}
-        <form onSubmit={submit}>
+        {sso && (
+          <>
+            <button className="btn btn-primary btn-lg" type="button" onClick={startSso} disabled={going}
+              style={{ width: '100%', justifyContent: 'center', gap: 10 }}>
+              <MsLogo />{going ? 'Redirecting to Microsoft…' : 'Sign in with Microsoft'}
+            </button>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-4)', textAlign: 'center', marginTop: 8 }}>
+              Use your MSA Consulting account
+            </div>
+            {!showFallback && (
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => setShowFallback(true)}
+                  style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>or sign in with an email address</button>
+              </div>
+            )}
+          </>
+        )}
+        {showFallback && sso && <div className="login-divider">Fallback — no password check</div>}
+        {showFallback && <form onSubmit={submit}>
           <div className="field">
             <label>Email</label>
             <input className="input" type="email" value={email} onChange={e => { setEmail(e.target.value); setErr(null); }} placeholder="you@msaconsultinginc.com" autoComplete="off" />
@@ -63,10 +101,10 @@ function LoginScreen({ users, onLogin }) {
             <label>Password</label>
             <input className="input" type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(null); }} placeholder="••••••••" />
           </div>
-          <button className="btn btn-primary btn-lg" type="submit" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
+          <button className={`btn btn-lg ${sso ? '' : 'btn-primary'}`} type="submit" style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
             Sign in <AuthIcon name="go" size={14} />
           </button>
-        </form>
+        </form>}
         <div className="login-divider">Demo — sign in as</div>
         <div className="demo-users">
           {users.slice(0, 3).map(u => (
@@ -200,4 +238,4 @@ function UsersPage({ users, setUsers, currentUser, showToast }) {
   );
 }
 
-Object.assign(window, { LoginScreen, UsersPage, UserAvatar, RoleBadge, AuthIcon, userColor });
+Object.assign(window, { LoginScreen, UsersPage, UserAvatar, RoleBadge, AuthIcon, userColor, MsLogo });

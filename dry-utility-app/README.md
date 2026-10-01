@@ -307,10 +307,36 @@ The app syncs its state to a Supabase backend (project `msa-project-tracker`,
 - If Supabase is unreachable the app silently falls back to localStorage-only
   mode (small attachments embed as data URLs, as before).
 
-Security note: this is prototype-grade — the publishable key has full read/write
-access to `app_state` and the bucket via permissive RLS policies. Anyone with the
-key (i.e. anyone who can view the page source) can read/modify the data. Move to
-Supabase Auth + row-level policies before using it with real client data.
+## Signing in
+
+Blueprint signs in through **Supabase Auth** with **Microsoft Entra ID** as the provider —
+see [`sso/README.md`](sso/README.md) for the setup runbook and
+[`sso/lock-down-rls.sql`](sso/lock-down-rls.sql) for the policies.
+
+`app-sso.js` drives it over plain REST (no Supabase SDK — there is no build step): it sends
+the browser to `/auth/v1/authorize?provider=azure`, catches the session Supabase returns in
+the URL fragment, scrubs the address bar, and refreshes the token a minute before expiry.
+The session is kept under `msa_auth_session_v1` — deliberately not an `msa_app_*` key,
+since those are mirrored to the server and a token must never be. `app-store.js` waits for
+that session to settle before its first pull and then sends the user's JWT in place of the
+publishable key, which is what lets row-level security tell an MSA employee apart from
+anyone who read the key out of the page.
+
+Entra supplies identity only. Roles stay with `PERMS` and the Users page: a known email
+address keeps the role it already has, and anyone else lands as a **viewer** titled
+"Signed in with Microsoft — role not set" for an admin to promote.
+
+The old email form stays behind a link, labelled as performing no password check, so a
+broken Entra registration cannot lock everyone out. Once the RLS lockdown is applied it
+produces no Supabase session and so works against local storage only — a way back in, not
+a way to use the app.
+
+Security note: **until `sso/lock-down-rls.sql` has been run**, this remains
+prototype-grade — the publishable key has full read/write access to `app_state` and the
+bucket via permissive policies, so anyone who can view the page source can read or modify
+the data, signed in or not. SSO gates the interface; that SQL is what gates the data. Note
+also that `attachments` is a public bucket, so object URLs stay readable by anyone holding
+the link until it is made private and the app mints signed URLs.
 
 ## Notes on the import
 

@@ -1596,6 +1596,37 @@ function App() {
   const [toast, setToast] = React.useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2800); };
 
+  // ---- who is signed in -------------------------------------------------------------
+  // Entra proves identity; Blueprint still decides the role. An MSA address that signs in
+  // for the first time is provisioned as a viewer rather than refused — being turned away
+  // by an app your own company runs is worse than landing read-only and asking for more.
+  const [ssoUser, setSsoUser] = React.useState(() => (typeof MSA_AUTH !== 'undefined' ? MSA_AUTH.user() : null));
+  React.useEffect(() => {
+    if (typeof MSA_AUTH === 'undefined' || !MSA_AUTH.configured()) return;
+    let live = true;
+    (window.__msaAuthReady || Promise.resolve(null)).then(u => { if (live) setSsoUser(u || null); });
+    return () => { live = false; };
+  }, []);
+  const ssoProvisioned = React.useRef(false);
+  React.useEffect(() => {
+    if (!ssoUser || ssoProvisioned.current) return;
+    ssoProvisioned.current = true;
+    const match = users.find(u => u.email.toLowerCase() === ssoUser.email.toLowerCase());
+    if (match) {
+      setSessionId(match.id); persistSession(match.id);
+      return;
+    }
+    const nm = ssoUser.name || ssoUser.email;
+    const initials = nm.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+    const invited = {
+      id: 'sso-' + ssoUser.id, name: nm, initials, email: ssoUser.email,
+      role: 'viewer', title: 'Signed in with Microsoft — role not set',
+    };
+    const next = [...users, invited];
+    setUsers(next); persistUsers(next);
+    setSessionId(invited.id); persistSession(invited.id);
+  }, [ssoUser, users]);
+
   const currentUser = users.find(u => u.id === sessionId) || null;
 
   const projects = React.useMemo(() => {
@@ -1681,7 +1712,13 @@ function App() {
   const canDelete = can(currentUser, 'deleteProjects');
 
   const login = (u) => { setSessionId(u.id); persistSession(u.id); showToast(`Welcome, ${u.name.split(' ')[0]}`); };
-  const logout = () => { setSessionId(null); persistSession(null); setPage('tracker'); };
+  const logout = () => {
+    setSessionId(null); persistSession(null); setPage('tracker');
+    // clear the Supabase session too, or the next load signs straight back in
+    if (typeof MSA_AUTH !== 'undefined' && MSA_AUTH.configured()) {
+      ssoProvisioned.current = false; setSsoUser(null); MSA_AUTH.signOut();
+    }
+  };
 
   const onWslAction = (pid, action) => {
     if (!canWrite) return;

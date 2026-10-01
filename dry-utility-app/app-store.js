@@ -20,18 +20,27 @@
   };
 
   var online = false;
-  var headers = {
-    apikey: API_KEY,
-    Authorization: 'Bearer ' + API_KEY,
-    'Content-Type': 'application/json',
-  };
+  // The bearer is the signed-in user's JWT when there is one, and the publishable key
+  // otherwise. That is what lets row-level security tell "an MSA employee who signed in
+  // with Entra" apart from "anyone who read the key out of this page" — so these headers
+  // are built per request rather than once, since the token refreshes.
+  function authHeaders(extra) {
+    var tok = (window.MSA_AUTH && window.MSA_AUTH.token && window.MSA_AUTH.token()) || API_KEY;
+    var h = {
+      apikey: API_KEY,              // Supabase routes on this; it is not the credential
+      Authorization: 'Bearer ' + tok,
+      'Content-Type': 'application/json',
+    };
+    if (extra) Object.keys(extra).forEach(function (k) { h[k] = extra[k]; });
+    return h;
+  }
 
   function pullAll() {
     if (!URL_BASE || !API_KEY) return Promise.resolve(false);
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = ctl && setTimeout(function () { ctl.abort(); }, 4000);
     return fetch(URL_BASE + '/rest/v1/app_state?select=k,v', {
-      headers: headers,
+      headers: authHeaders(),
       signal: ctl ? ctl.signal : undefined,
     })
       .then(function (r) {
@@ -76,14 +85,14 @@
     if (rows.length) {
       fetch(URL_BASE + '/rest/v1/app_state?on_conflict=k', {
         method: 'POST',
-        headers: Object.assign({}, headers, { Prefer: 'resolution=merge-duplicates,return=minimal' }),
+        headers: authHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
         body: JSON.stringify(rows),
       }).catch(function (e) { console.warn('[msa-store] upsert failed', e); });
     }
     dels.forEach(function (k) {
       fetch(URL_BASE + '/rest/v1/app_state?k=eq.' + encodeURIComponent(k), {
         method: 'DELETE',
-        headers: headers,
+        headers: authHeaders(),
       }).catch(function (e) { console.warn('[msa-store] delete failed', e); });
     });
   }
@@ -116,12 +125,10 @@
     var path = encodeURIComponent(projectId) + '/' + Date.now() + '-' + encodeURIComponent(safeName);
     return fetch(URL_BASE + '/storage/v1/object/attachments/' + path, {
       method: 'POST',
-      headers: {
-        apikey: API_KEY,
-        Authorization: 'Bearer ' + API_KEY,
+      headers: authHeaders({
         'Content-Type': file.type || 'application/octet-stream',
         'x-upsert': 'true',
-      },
+      }),
       body: file,
     }).then(function (r) {
       if (!r.ok) throw new Error('upload ' + r.status);
@@ -138,5 +145,10 @@
   };
 
   window.__msaStoreOnline = function () { return online; };
-  window.__msaStoreReady = pullAll();
+  // Wait for the SSO layer to settle its session before the first pull. Firing early
+  // would send the publishable key, and once row-level security only trusts signed-in
+  // users that pull comes back empty — the app would quietly start in offline mode for
+  // the very people who are allowed to see the data.
+  var authSettled = window.__msaAuthReady || Promise.resolve(null);
+  window.__msaStoreReady = authSettled.catch(function () { return null; }).then(pullAll);
 })();
