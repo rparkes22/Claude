@@ -163,13 +163,31 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
   const BOOK = React.useMemo(() => getLetterRecipients(), [open]);
   const relevant = BOOK.filter(r => p.agencies.includes(r.agency));
   const others = BOOK.filter(r => !p.agencies.includes(r.agency));
-  const [selected, setSelected] = React.useState(() => new Set(relevant.map(r => r.id)));
+  // What is already on this project's research log. Reopening the generator after a run
+  // used to tick everything again, so adding one agency meant reprinting the whole set;
+  // now only the agencies still without a letter come up ticked, and the ones already
+  // sent say so and can be reissued deliberately.
+  const sentFor = React.useMemo(() => {
+    const logged = [...(p.research || []), ...((typeof loadAddedResearch === 'function' ? loadAddedResearch() : {})[p.id] || [])];
+    const m = {};
+    logged.forEach(r => { if (!m[r.agency] || r.sent > m[r.agency]) m[r.agency] = r.sent; });
+    return m;
+  }, [p.id, p.research, open]);
+  // agencies on the project that no letter contact covers — nothing can be generated for
+  // them until a contact is added in Agency Setup, so say so rather than drop them
+  const uncovered = React.useMemo(
+    () => (p.agencies || []).filter(a => !BOOK.some(r => r.agency === a)).map(a => AGENCIES[a]).filter(Boolean),
+    [p.agencies, BOOK]);
+  const pending = relevant.filter(r => !sentFor[r.agency]);
+  const [selected, setSelected] = React.useState(() => new Set(pending.map(r => r.id)));
   const [fields, setFields] = React.useState(null);
   const [previewId, setPreviewId] = React.useState(null);
   React.useEffect(() => {
     if (!open) return;
-    setSelected(new Set(relevant.map(r => r.id)));
-    setPreviewId(relevant[0]?.id || BOOK[0]?.id);
+    // default to what still needs sending; everything already logged stays unticked
+    const fresh = relevant.filter(r => !sentFor[r.agency]);
+    setSelected(new Set(fresh.map(r => r.id)));
+    setPreviewId((fresh[0] || relevant[0] || BOOK[0] || {}).id);
     setFields({
       date: TODAY.toISOString().slice(0, 10),
       jobNo: p.code,
@@ -216,14 +234,20 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
       showToast && showToast(`${chosen.length} letter${chosen.length > 1 ? 's' : ''} sent to print — save as PDF from the dialog`);
     }, 120);
   };
-  const RecipRow = ({ r, dim }) => (
-    <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 12.5, opacity: dim && !selected.has(r.id) ? 0.65 : 1 }}>
-      <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} style={{ accentColor: 'var(--primary)' }} />
-      <span style={{ fontWeight: 600, flex: 1 }}>{r.label}{r.method === 'portal' && <span className="badge b-blue" style={{ marginLeft: 7, fontSize: 9.5 }}>portal</span>}</span>
-      <span style={{ fontSize: 10.5, color: 'var(--ink-4)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.method === 'portal' ? 'CVWD online portal' : r.email}</span>
-      <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, fontSize: 10.5, padding: '0 6px' }} onClick={(e) => { e.preventDefault(); setPreviewId(r.id); }}>Preview</button>
-    </label>
-  );
+  const RecipRow = ({ r, dim }) => {
+    const already = sentFor[r.agency];
+    return (
+      <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 12.5, opacity: dim && !selected.has(r.id) ? 0.65 : 1 }}>
+        <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} style={{ accentColor: 'var(--primary)' }} />
+        <span style={{ fontWeight: 600, flex: 1 }}>{r.label}{r.method === 'portal' && <span className="badge b-blue" style={{ marginLeft: 7, fontSize: 9.5 }}>portal</span>}</span>
+        {/* what is already on the log, so reissuing is a deliberate choice */}
+        {already
+          ? <span className="badge b-ok" style={{ fontSize: 9.5 }} title={`A letter is already logged for this agency, sent ${fmtShort(already)}`}><span className="badge-dot"></span>sent {fmtShort(already)}</span>
+          : <span className="badge b-amber" style={{ fontSize: 9.5 }}><span className="badge-dot"></span>none yet</span>}
+        <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, fontSize: 10.5, padding: '0 6px' }} onClick={(e) => { e.preventDefault(); setPreviewId(r.id); }}>Preview</button>
+      </label>
+    );
+  };
   return (
     <div className="modal-backdrop open" onClick={backdropClose(onClose)}>
       <div className="modal" style={{ width: 'min(1060px, 94vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
@@ -247,7 +271,23 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
               <div className="field"><label>Signer title</label><input className="input" style={{ height: 30, fontSize: 12 }} value={fields.signerTitle} onChange={set('signerTitle')} /></div>
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>Recipients ({selected.size} selected)</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1 }}>Recipients ({selected.size} selected)</span>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, fontSize: 10.5, padding: '0 6px' }}
+                  onClick={() => setSelected(new Set(relevant.map(r => r.id)))}>All</button>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, fontSize: 10.5, padding: '0 6px' }}
+                  onClick={() => setSelected(new Set())}>None</button>
+              </label>
+              {pending.length === 0 && relevant.length > 0 && (
+                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 7, padding: '7px 9px', margin: '2px 0 7px' }}>
+                  Every agency on this project already has a letter logged. Tick one to reissue it — change the letter date first, or it will be treated as the same letter.
+                </div>
+              )}
+              {uncovered.length > 0 && (
+                <div style={{ fontSize: 11.5, color: 'var(--amber-ink)', background: 'var(--amber-tint)', borderRadius: 7, padding: '7px 9px', margin: '2px 0 7px' }}>
+                  No letter contact on file for {uncovered.map(a => a.short).join(', ')} — add one under Agency setup → the agency's contacts and it will appear here.
+                </div>
+              )}
               {relevant.map(r => <RecipRow key={r.id} r={r} />)}
               {others.length > 0 && <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--ink-4)', fontWeight: 600, margin: '8px 0 2px' }}>Other agencies</div>}
               {others.map(r => <RecipRow key={r.id} r={r} dim />)}

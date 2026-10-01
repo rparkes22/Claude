@@ -28,9 +28,18 @@ Sign in with one of the demo users on the login screen.
    back (both editable), or can be closed out as **No response** when an agency never
    replies. No-response agencies are excluded from outstanding-letter counts and are
    marked N/A on the Existing Utility Plan.
+   Reopening the generator after a run ticks **nothing**: each recipient says whether a
+   letter is already on file and when, so adding one agency no longer means reprinting the
+   whole set. Ticking a sent agency reissues it — change the letter date first, or it is
+   treated as the same letter. **All** / **None** are there for a wholesale redo. Agencies
+   on the project that no letter contact covers are named rather than silently dropped,
+   pointing at Agency setup.
+
    A utility can be **added after the fact** from the research panel — a service nobody
    knew reached the site, or one the client adds later. Pick it, give the date the request
-   went out, and it joins the log ageing from that date. The list is the whole agency
+   went out, and it joins the log ageing from that date. Leave **Request already sent**
+   unticked when nothing has gone out yet: the agency joins the project and the letter
+   generator opens with it — and only it — ticked. The list is the whole agency
    directory rather than the letter address book, which only covers the Imperial and
    Coachella agencies and would offer nothing on a Morongo Basin project; agencies with no
    letter contact on file are offered and say so. The agency joins the project too, so its
@@ -61,6 +70,30 @@ fixed anchor date to keep their internal timing exact, then slid forward to the 
 by a whole number of weeks at load — the demo data never ages out from under the calendar,
 and a deadline written for a Tuesday is still a Tuesday. Only the seed baseline moves;
 anything entered or edited in the app is real data and stays where it was put.
+
+## The projects table
+
+One row per project, and the columns are about the project rather than its client:
+**Location** is the site address with its city beneath, not a city that reads like the
+client's base.
+
+The last column is the **approval artifact the project's own utility uses** — a Will Serve
+Letter for IID, an Electrical Analysis Review for SCE — so EAR shows on SCE projects and
+nowhere else. It reads *No WSL yet*, *Complete* with the days left, *Expired* once it has
+lapsed, or *Closed out*. "Complete" means the letter is in hand; it is deliberately not
+shown beside "expired", where it would read as though nothing needed doing.
+
+This column used to fall back to an `SCE · n/a` tag whenever a WSL was missing, which
+labelled IID projects as SCE — 2913 being the case that surfaced it.
+
+Agencies filter through one grouped picker; the chosen ones appear as removable chips.
+A chip per agency meant thirty-odd buttons wrapping over three lines above the table.
+
+### SCE: the Electrical Analysis Review
+
+An SCE project gets an **EAR panel** in place of the Will Serve panel, with the status
+(`EAR_STATES`) and the date it is as of, both editable — it was a read-only note about a
+field nothing in the app could set. There is no expiry clock and no "Log WSL" button.
 
 ## Marking a module complete
 

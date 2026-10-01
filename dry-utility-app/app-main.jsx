@@ -66,21 +66,41 @@ function DDPips({ dd }) {
     </span>
   );
 }
-function WslChip({ wd }) {
-  if (!wd) return <span className="util-tag util-sce">SCE · n/a</span>;
+// The approval artifact for a project's electric utility: a Will Serve Letter for IID,
+// an Electrical Analysis Review for SCE. One project has one or the other, and this is
+// the only place the tracker reports it — so it has to read the project's own utility
+// rather than assume. (It used to fall back to an "SCE · n/a" tag whenever a WSL was
+// missing, which labelled IID projects as SCE.)
+function ApprovalChip({ p }) {
+  if (isSceProject(p)) {
+    const ear = deriveEar(p);
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span className={`badge ${ear.badge}`} style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>EAR {ear.status.toLowerCase()}</span>
+        {ear.date && <span className="cell-muted mono" style={{ fontSize: 10.5 }}>{fmtShort(ear.date)}</span>}
+      </span>
+    );
+  }
+  const wd = deriveWsl(p.wsl);
+  if (!wd) return <span className="badge b-gray" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>No WSL yet</span>;
   // Closed out — the countdown is retired, so the chip says so and stops shouting.
   if (wd.complete) return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Complete</span>
-      {wd.completedOn && <span style={{ fontSize: 10.5, color: 'var(--ink-4)' }}>{fmtShort(wd.completedOn)}</span>}
+      <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Closed out</span>
+      {wd.completedOn && <span className="cell-muted mono" style={{ fontSize: 10.5 }}>{fmtShort(wd.completedOn)}</span>}
     </span>
   );
-  // The letter stays "Sent" once issued; expiry rides alongside it as a separate signal.
-  const cls = wd.state === 'expired' || wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok';
+  // The letter is in hand, so that step is complete — except once it has lapsed, where
+  // saying "Complete" next to "expired" reads as though nothing needs doing.
+  const cls = wd.state === 'critical' ? 'crit' : wd.state === 'warning' ? 'warn' : 'ok';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Sent</span>
-      <span className={`days-chip ${cls}`}>{wd.state === 'expired' ? `expired ${fmtShort(wd.effectiveExpiry)}` : `${wd.daysLeft}d`}</span>
+      {wd.state === 'expired'
+        ? <span className="badge b-warn" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Expired {fmtShort(wd.effectiveExpiry)}</span>
+        : <>
+            <span className="badge b-ok" style={{ padding: '1px 7px', fontSize: 10 }}><span className="badge-dot"></span>Complete</span>
+            <span className={`days-chip ${cls}`}>{wd.daysLeft}d</span>
+          </>}
       {wd.needsExtension && <span className="badge b-amber" style={{ padding: '1px 6px', fontSize: 10 }} title="6-month extension still available">extend</span>}
       {wd.extensionUsed && <span className="badge b-violet" style={{ padding: '1px 6px', fontSize: 10 }}>ext used</span>}
     </span>
@@ -300,6 +320,12 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
     return Object.keys(map).sort((a, b) => map[b] - map[a]).map(id => ({ id, count: map[id], meta: AGENCIES[id] || { short: id, name: id } }));
   }, [projects]);
   const toggleAgency = (id) => setAgencyFilter(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  // grouped by kind so a long directory stays navigable in one select
+  const agencyGroups = React.useMemo(() => {
+    const g = {};
+    agencyCounts.forEach(a => { const k = (a.meta.kind || 'Other'); (g[k] = g[k] || []).push(a); });
+    return Object.keys(g).sort().map(k => ({ kind: k, items: g[k] }));
+  }, [agencyCounts]);
 
   const filtered = React.useMemo(() => {
     let r = projects.slice();
@@ -346,18 +372,31 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
           <Icon name="search" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects, clients, addresses…" />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--ink-4)', fontWeight: 700, marginRight: 2 }}>Agency</span>
-          {agencyCounts.map(({ id, count, meta }) => (
-            <button key={id} className="btn btn-sm" title={meta.name} onClick={() => toggleAgency(id)}
-              style={agencyFilter.includes(id)
-                ? { background: 'var(--primary)', borderColor: 'var(--primary)', color: 'white', height: 26, fontSize: 11, padding: '0 9px' }
-                : { height: 26, fontSize: 11, padding: '0 9px' }}>
-              <span className="mono">{meta.short}</span>
-              <span style={{ fontFamily: 'Geist Mono, monospace', fontSize: 9.5, opacity: 0.7 }}>{count}</span>
-            </button>
-          ))}
-          {agencyFilter.length > 0 && <button className="btn btn-ghost btn-sm" style={{ height: 26, fontSize: 11 }} onClick={() => setAgencyFilter([])}>Clear</button>}
+        {/* One picker instead of a chip per agency. Every agency across every project was
+            thirty-odd buttons wrapping over three lines before anything else on the
+            toolbar; only the ones actually filtering stay on screen. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <select className="select" style={{ width: 'auto', minWidth: 158, height: 30, fontSize: 12 }}
+            value="" onChange={e => { if (e.target.value) toggleAgency(e.target.value); }}>
+            <option value="">Filter by agency…</option>
+            {agencyGroups.map(g => (
+              <optgroup key={g.kind} label={g.kind}>
+                {g.items.filter(a => !agencyFilter.includes(a.id)).map(a => (
+                  <option key={a.id} value={a.id}>{a.meta.name} ({a.count})</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {agencyFilter.map(id => {
+            const meta = AGENCIES[id] || { short: id, name: id };
+            return (
+              <button key={id} className="btn btn-sm" title={`Remove ${meta.name}`} onClick={() => toggleAgency(id)}
+                style={{ background: 'var(--primary)', borderColor: 'var(--primary)', color: 'white', height: 26, fontSize: 11, padding: '0 8px', gap: 5 }}>
+                <span className="mono">{meta.short}</span><Icon name="x" size={9} />
+              </button>
+            );
+          })}
+          {agencyFilter.length > 1 && <button className="btn btn-ghost btn-sm" style={{ height: 26, fontSize: 11 }} onClick={() => setAgencyFilter([])}>Clear</button>}
         </div>
         <div className="toolbar-spacer"></div>
         {canWrite
@@ -370,7 +409,7 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
           <table className="grid">
             <thead>
               <tr>
-                {[['project', 'Project', 'col-project'], ['client', 'Client'], ['location', 'Location'], ['contract', 'Contract'], ['phase', 'Phase'], ['tasks', 'Research'], ['wsl', 'WSL']].map(([key, lab, cls]) => (
+                {[['project', 'Project', 'col-project'], ['client', 'Client'], ['location', 'Location'], ['contract', 'Contract'], ['phase', 'Phase'], ['tasks', 'Research'], ['wsl', 'WSL / EAR']].map(([key, lab, cls]) => (
                   <th key={key} className={cls || ''} onClick={() => setSortKey(key)}
                     style={{ cursor: 'pointer', userSelect: 'none' }} title="Click to sort">
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -406,11 +445,16 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
                           </div>
                         </td>
                         <td>{p.client}</td>
-                        <td style={{ fontSize: 12 }}>{p.location.city}, {p.location.state} <span className="cell-muted mono" style={{ fontSize: 10.5 }}>{p.location.zip}</span></td>
+                        {/* the project site, street first — a city alone reads like the
+                            client's base rather than where the work is */}
+                        <td style={{ fontSize: 12, minWidth: 180 }}>
+                          <div style={{ color: 'var(--ink-2)' }}>{p.location.street || <span className="cell-muted">—</span>}</div>
+                          <div className="cell-muted" style={{ fontSize: 11 }}>{p.location.city}, {p.location.state} <span className="mono" style={{ fontSize: 10.5 }}>{p.location.zip}</span></div>
+                        </td>
                         <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>{p.contractDate ? fmtShort(p.contractDate) : <span className="cell-muted">—</span>}</td>
                         <td><PhaseBadge phase={p.phase} /></td>
                         <td>{(() => { const r = getResearchRows(p); if (!r.length) return <span className="cell-muted">—</span>; const got = r.filter(x => x.received).length; return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className={`badge ${got === r.length ? 'b-ok' : 'b-amber'}`} style={{ fontSize: 10 }}><span className="badge-dot"></span>{got}/{r.length}</span><span className="cell-muted" style={{ fontSize: 10.5 }}>received</span></span>; })()}</td>
-                        <td><WslChip wd={deriveWsl(p.wsl)} /></td>
+                        <td><ApprovalChip p={p} /></td>
                       </tr>
                       {expanded === p.id && (
                         <tr className="detail-row">
@@ -443,7 +487,7 @@ function TrackerPage({ projects, completed = [], canWrite, onAddClick, onWslActi
                     <tr key={p.id} className="row-main" onClick={() => onOpenProject(p.id)}>
                       <td className="col-project"><div className="proj-name">{p.name}</div><div className="proj-code">{p.code}</div></td>
                       <td>{p.client}</td>
-                      <td style={{ fontSize: 12 }}>{p.location.city}, {p.location.state}</td>
+                      <td style={{ fontSize: 12 }}><div>{p.location.street || '—'}</div><div className="cell-muted" style={{ fontSize: 11 }}>{p.location.city}, {p.location.state}</div></td>
                       <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{p.completedOn ? fmt(p.completedOn) : '—'}</td>
                       <td style={{ textAlign: 'right' }}><span className="badge b-ok"><span className="badge-dot"></span>Complete</span></td>
                     </tr>
@@ -639,7 +683,7 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
                     <td className="mono" style={{ fontSize: 12 }}>{fmtShort(wd.issued)}, {parseDate(wd.issued).getFullYear()}</td>
                     <td className="mono" style={{ fontSize: 12 }}>{fmtShort(wd.effectiveExpiry)}, {parseDate(wd.effectiveExpiry).getFullYear()}</td>
                     <td>{wd.extensionUsed ? <span className="badge b-violet"><span className="badge-dot"></span>used</span> : <span className="badge b-gray">available</span>}</td>
-                    <td style={{ textAlign: 'right' }}><WslChip wd={wd} /></td>
+                    <td style={{ textAlign: 'right' }}><ApprovalChip p={p} /></td>
                     <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                       {wd.state === 'expired'
                         ? <button className="btn btn-sm btn-warn" disabled={!canWrite} onClick={() => onWslAction(p.id, 'reapply')}><Icon name="refresh" size={12} />Reapply</button>
@@ -671,7 +715,7 @@ function WslPage({ projects, canWrite, onWslAction, onOpenProject, showToast }) 
                     <td style={{ fontSize: 12 }}>{p.location.city}</td>
                     <td className="mono" style={{ fontSize: 12 }}>{fmtShort(wd.issued)}, {parseDate(wd.issued).getFullYear()}</td>
                     <td className="mono" style={{ fontSize: 12 }}>{wd.completedOn ? fmt(wd.completedOn) : '—'}</td>
-                    <td style={{ textAlign: 'right' }}><WslChip wd={wd} /></td>
+                    <td style={{ textAlign: 'right' }}><ApprovalChip p={p} /></td>
                   </tr>
                 ))}
               </tbody>

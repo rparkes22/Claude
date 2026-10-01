@@ -690,6 +690,21 @@ function deriveWsl(wsl) {
            derivedExpiry, derivedExtensionExpiry };
 }
 
+// SCE runs an Electrical Analysis Review instead of a Will Serve Letter — no expiry
+// clock, just a submittal that comes back approved. Projects carry one or the other.
+const EAR_STATES = ['Not started', 'Submitted', 'In review', 'Approved', 'Resubmit'];
+const isSceProject = (p) => (p.utility || '').toUpperCase() === 'SCE';
+function deriveEar(p) {
+  const sce = p.sce || {};
+  const status = sce.ear || 'Not started';
+  return {
+    status, date: sce.earDate || null,
+    submitted: status !== 'Not started',
+    done: status === 'Approved',
+    badge: status === 'Approved' ? 'b-ok' : status === 'Resubmit' ? 'b-warn' : status === 'Not started' ? 'b-gray' : 'b-amber',
+  };
+}
+
 const PHASE_META = {
   'Lead': { badge: 'b-gray' }, 'Due Diligence': { badge: 'b-violet' }, 'Design': { badge: 'b-blue' },
   'Submitted': { badge: 'b-amber' }, 'Construction': { badge: 'b-teal' }, 'Closeout': { badge: 'b-ok' },
@@ -731,5 +746,5 @@ Object.assign(window, {
   CITY_AGENCIES, CITIES, AGENCIES, AGENCY_KINDS, AGENCY_TASKS, KIND_TASKS, tasksForAgency, tasksForKind,
   loadTaskCatalog, persistTaskCatalog, addAgency, removeAgency, updateAgency, resetAgency,
   addCity, updateCityAgencies, removeCity, restoreCity, isCustomCity, isEditedCity, removedCities,
-  SEED_PROJECTS, deriveWsl, taskState, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
+  SEED_PROJECTS, deriveWsl, taskState, EAR_STATES, isSceProject, deriveEar, deriveCapacityStudy, CAPACITY_STUDY_WEEKS, addDays, PHASE_META, PHASES, SUB_META, DD_META,
 });

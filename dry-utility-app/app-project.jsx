@@ -341,6 +341,7 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd, onInfoU
   // regenerating the whole letter run just to get one more row into the tracker.
   const [addingUtil, setAddingUtil] = React.useState(false);
   const [newUtil, setNewUtil] = React.useState('');
+  const [newUtilAsked, setNewUtilAsked] = React.useState(true);   // request already out?
   const [newUtilSent, setNewUtilSent] = React.useState(TODAY.toISOString().slice(0, 10));
   const [fu, setFu] = React.useState(() => loadResearchFu()[p.id] || {});
   const logFu = (r) => {
@@ -426,19 +427,24 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd, onInfoU
   const addUtility = () => {
     const rec = utilOptions.find(b => b.id === newUtil);
     if (!rec) return;
-    const all = loadAddedResearch();
-    const row = {
-      id: 'ra-' + Date.now(), agency: rec.agency, label: rec.label,
-      sent: newUtilSent || TODAY.toISOString().slice(0, 10), received: null,
-      to: rec.email, file: null, logged: true, owner: 'u2',
-    };
-    persistAddedResearch({ ...all, [p.id]: [...(all[p.id] || []), row] });
-    // bring the agency onto the project too, so coordination templates and the plan
-    // module see it rather than it living only in the research log
+    // Bring the agency onto the project either way, so coordination templates and the
+    // plan module see it rather than it living only in the research log.
     if (onInfoUpdate && rec.agency && !(p.agencies || []).includes(rec.agency)) {
       onInfoUpdate(p.id, { agencies: [...(p.agencies || []), rec.agency] });
     }
+    if (newUtilAsked) {
+      const all = loadAddedResearch();
+      const row = {
+        id: 'ra-' + Date.now(), agency: rec.agency, label: rec.label,
+        sent: newUtilSent || TODAY.toISOString().slice(0, 10), received: null,
+        to: rec.email, file: null, logged: true, owner: 'u2',
+      };
+      persistAddedResearch({ ...all, [p.id]: [...(all[p.id] || []), row] });
+    }
     setAddingUtil(false); setNewUtil('');
+    // Nothing has gone out yet, so hand straight over to the generator — it will come up
+    // with this agency ticked and the ones already sent left alone.
+    if (!newUtilAsked && onGenerate) onGenerate();
   };
   const toggle = (r) => patchRow(r, r.received ? { received: null } : { received: TODAY.toISOString().slice(0, 10), noResponse: false });
   const toggleNoResponse = (r) => patchRow(r, r.noResponse ? { noResponse: false } : { noResponse: true, received: null });
@@ -462,11 +468,17 @@ function ResearchPanel({ p, canWrite, onGenerate, onEditInfo, onTaskAdd, onInfoU
               </optgroup>
             ))}
           </select>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
-            Letter sent
-            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newUtilSent} onChange={e => setNewUtilSent(e.target.value)} title="Date the request went out" />
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600, cursor: 'pointer' }}>
+            <input type="checkbox" checked={newUtilAsked} onChange={e => setNewUtilAsked(e.target.checked)} style={{ accentColor: 'var(--primary)' }} />
+            Request already sent
           </label>
-          <button className="btn btn-primary btn-sm" onClick={addUtility} disabled={!newUtil}>Add</button>
+          {newUtilAsked
+            ? <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+                on
+                <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }} value={newUtilSent} onChange={e => setNewUtilSent(e.target.value)} title="Date the request went out" />
+              </label>
+            : <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>— the letter generator opens with this agency ready to send</span>}
+          <button className="btn btn-primary btn-sm" onClick={addUtility} disabled={!newUtil}>{newUtilAsked ? 'Add' : 'Add & generate letter'}</button>
           <button className="btn btn-sm" onClick={() => setAddingUtil(false)}>Cancel</button>
           {utilOptions.length === 0 && <span style={{ fontSize: 11.5, color: 'var(--ink-4)' }}>Every utility in the contact book is already on this project.</span>}
         </div>
@@ -1248,8 +1260,8 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 74 }}>
           <div className="panel">
             <div className="panel-hd">
-              <h2>{wd ? 'Will Serve Letter' : p.utility === 'SCE' ? 'SCE electrical review' : 'Will Serve Letter'}</h2>
-              {canWrite && (wd || p.agencies.includes('iid')) && !wslEditing && (
+              <h2>{isSceProject(p) ? 'SCE Electrical Analysis Review' : 'Will Serve Letter'}</h2>
+              {canWrite && !isSceProject(p) && (wd || p.agencies.includes('iid')) && !wslEditing && (
                 <button className="btn btn-ghost btn-sm" onClick={startWslEdit}>{wd ? 'Edit dates' : 'Log WSL'}</button>
               )}
             </div>
@@ -1378,11 +1390,38 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
                     </div>
                   )}
                 </>
-              ) : p.utility === 'SCE' ? (
-                <div className="callout info">
-                  <ProjIcon name="alert" size={16} />
-                  <div><b>No Will Serve Letter required.</b> SCE runs an electrical-analysis review. Status: <b>{p.sce?.ear || 'Not started'}</b>{p.sce?.earDate ? ` (as of ${fmtShort(p.sce.earDate)})` : ''}.</div>
-                </div>
+              ) : isSceProject(p) ? (
+                /* SCE's Electrical Analysis Review is this project's approval artifact —
+                   the equivalent of the WSL, so it is recorded here rather than being a
+                   read-only note about a field nothing could set. No expiry clock. */
+                (() => {
+                  const ear = deriveEar(p);
+                  const setEar = (patch) => onInfoUpdate(p.id, { sce: { ...(p.sce || {}), ...patch } });
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <span className={`badge ${ear.badge}`}><span className="badge-dot"></span>EAR {ear.status.toLowerCase()}</span>
+                        {ear.date && <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{fmt(ear.date)}</span>}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 12 }}>
+                        No Will Serve Letter required — SCE runs an <b>electrical analysis review</b>, with no 1-year expiry clock.
+                      </div>
+                      {canWrite ? (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <select className="select" style={{ width: 'auto', minWidth: 132, height: 30, fontSize: 12.5, fontWeight: 600 }}
+                            value={ear.status} onChange={e => setEar({ ear: e.target.value })} title="Electrical analysis review status">
+                            {EAR_STATES.map(st => <option key={st} value={st}>{st}</option>)}
+                          </select>
+                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--ink-3)', fontWeight: 600 }}>
+                            As of
+                            <input type="date" className="input" style={{ height: 30, fontSize: 12, width: 140 }}
+                              value={ear.date || ''} onChange={e => setEar({ earDate: e.target.value || null })} />
+                          </label>
+                        </div>
+                      ) : <span className="readonly-note"><ProjIcon name="lock" size={11} />Read-only</span>}
+                    </>
+                  );
+                })()
               ) : (
                 <div className="callout warn">
                   <ProjIcon name="clock" size={16} />
