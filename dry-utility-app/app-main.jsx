@@ -1174,7 +1174,7 @@ function ReportsPage({ projects, users, currentUser, canWrite, showToast, initia
             <div className="m"><div className="l">Client</div><div className="v">{shown.client}</div></div>
             <div className="m"><div className="l">Project No.</div><div className="v mono">{shown.code}</div></div>
             <div className="m"><div className="l">Project Manager</div><div className="v">{shown.pm}</div></div>
-            <div className="m"><div className="l">Location</div><div className="v">{shown.location}</div></div>
+            <div className="m m-wide"><div className="l">Location</div><div className="v">{shown.location}</div></div>
             <div className="m"><div className="l">Phase</div><div className="v">{shown.phase}</div></div>
           </div>
 
@@ -1766,12 +1766,19 @@ function App() {
     return next;
   });
 
+  // `date` is the day the submittal went out, so a status change must never overwrite it
+  // — marking a months-old submittal complete used to restamp it as sent today. Fill it
+  // only when it is still blank, and let completing a task stamp the response date instead.
   const onTaskUpdate = (pid, taskKey, status) => {
     if (!canWrite) return;
     const p = projects.find(x => x.id === pid);
     const t = p && p.tasks.find(x => x._key === taskKey);
     if (!t) return;
-    patchTask(pid, taskKey, { status, date: TODAY.toISOString().slice(0, 10) });
+    const today = TODAY.toISOString().slice(0, 10);
+    const patch = { status };
+    if (status !== 'none' && !t.date) patch.date = today;
+    if (status === 'ok' && !t.received) patch.received = today;
+    patchTask(pid, taskKey, patch);
     showToast(`${t.name} → ${SUB_META[status].label}`);
   };
 
@@ -1929,8 +1936,6 @@ function App() {
           {openProject ? (
             <ProjectPage
               users={users}
-              userLoads={userLoads}
-              onTaskAssign={onTaskAssign}
               p={openProject}
               canWrite={canWrite}
               currentUser={currentUser}

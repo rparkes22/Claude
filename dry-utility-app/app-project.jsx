@@ -752,7 +752,10 @@ function ProjTimeline({ p, modules }) {
   );
 }
 
-function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAssign, onTaskAdd, wsl }) {
+// No per-task assignee here: coordination tasks are Mike's work almost without exception,
+// so a picker on every row was five clicks that never changed anything. Assignment still
+// exists — the Workload page reassigns, and anything unassigned falls to the project's PM.
+function ProjTasksPanel({ p, canWrite, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAdd, wsl }) {
   const tasks = p.tasks.filter(t => t.user);
   const capStudy = deriveCapacityStudy(p.capacityStudy);
   const [adding, setAdding] = React.useState(false);
@@ -854,7 +857,6 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
                 <th style={{ width: 132 }}>Status</th>
                 <th style={{ width: 124 }}>Submitted</th>
                 <th style={{ width: 124 }}>Received</th>
-                <th style={{ width: 124 }}>Assignee</th>
                 {canWrite && <th style={{ width: 54, paddingRight: 16 }}></th>}
               </tr>
             </thead>
@@ -862,7 +864,6 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
               {tasks.map((t, i) => {
                 const m = SUB_META[t.status];
                 const st = taskState(t);
-                const u = users.find(x => x.id === t.assignee);
                 const a = t.agency ? AGENCIES[t.agency] : null;
                 return (
                   <tr key={t._key || i}>
@@ -898,14 +899,6 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
                       {/* how long it has been out is the signal, not a deadline */}
                       {st.awaiting && <div><span className={`badge ${st.stale ? 'b-warn' : 'b-amber'}`} style={{ fontSize: 9.5, marginTop: 3 }}><span className="badge-dot"></span>{st.days}d out</span></div>}
                     </td>
-                    <td>
-                      {canWrite ? (
-                        <select className="select" style={{ width: '100%', height: 28, fontSize: 12, paddingLeft: 8, color: u ? 'var(--ink-2)' : 'var(--ink-4)' }} value={t.assignee || ''} onChange={e => onTaskAssign(p.id, t._key, e.target.value || null)}>
-                          <option value="">Unassigned</option>
-                          {users.map(x => { const load = userLoads ? userLoads[x.id] : null; return <option key={x.id} value={x.id}>{x.name}{load ? ` (${load.load} open)` : ''}</option>; })}
-                        </select>
-                      ) : <span style={{ color: u ? 'var(--ink-2)' : 'var(--ink-4)' }}>{u ? u.name : 'Unassigned'}</span>}
-                    </td>
                     {canWrite && (
                       <td style={{ paddingRight: 16, whiteSpace: 'nowrap' }}>
                         <button className="btn btn-ghost btn-sm" style={{ height: 24, padding: '0 6px' }} title="Rename" onClick={() => { setEditKey(t._key); setEditName(t.name); }}><ProjIcon name="edit" size={11} /></button>
@@ -923,7 +916,7 @@ function ProjTasksPanel({ p, canWrite, users, userLoads, onTaskUpdate, onTaskRen
   );
 }
 
-function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAssign, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
+function ProjectPage({ p, canWrite, currentUser, users, onBack, onWslAction, onWslEdit, onCapacityEdit, onTaskUpdate, onTaskRename, onTaskDelete, onTaskSetReceived, onTaskSetDate, onTaskAdd, onDdUpdate, onPhaseUpdate, onInfoUpdate, onProjectDelete, onGoReport }) {
   const wd = deriveWsl(p.wsl);
   const [letterGenOpen, setLetterGenOpen] = React.useState(false);
   const [infoEditOpen, setInfoEditOpen] = React.useState(false);
@@ -1161,7 +1154,7 @@ function ProjectPage({ p, canWrite, currentUser, users, userLoads, onBack, onWsl
 
           {modules.coordination && <CoordModule p={p} canWrite={canWrite} currentUser={currentUser} users={users} />}
 
-          <ProjTasksPanel p={p} canWrite={canWrite} users={users} userLoads={userLoads} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetReceived={onTaskSetReceived} onTaskSetDate={onTaskSetDate} onTaskAssign={onTaskAssign} onTaskAdd={onTaskAdd} />
+          <ProjTasksPanel p={p} canWrite={canWrite} wsl={wd} onTaskUpdate={onTaskUpdate} onTaskRename={onTaskRename} onTaskDelete={onTaskDelete} onTaskSetReceived={onTaskSetReceived} onTaskSetDate={onTaskSetDate} onTaskAdd={onTaskAdd} />
 
           <div className="panel">
             <div className="panel-hd"><h2>Notes &amp; activity</h2><span className="meta">{activity.length} entries</span></div>

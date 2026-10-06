@@ -242,7 +242,7 @@ function DashPage({ projects, users, currentUser, onOpenProject, onGoPage }) {
             <span className="meta">assigned to you, or unassigned on your {myProjects.length} project{myProjects.length === 1 ? '' : 's'} · {myTasks.length} open</span>
           </div>
           {myProjects.length === 0 && myTasks.length === 0 && <div style={{ padding: 18, fontSize: 12.5, color: 'var(--ink-4)' }}>Nothing assigned to you yet.</div>}
-          {(myProjects.length > 0 || myTasks.length > 0) && myTasks.length === 0 && <div style={{ padding: 18, fontSize: 12.5, color: 'var(--ink-4)' }}>All caught up — every task on your plate is approved. ✓</div>}
+          {(myProjects.length > 0 || myTasks.length > 0) && myTasks.length === 0 && <div style={{ padding: 18, fontSize: 12.5, color: 'var(--ink-4)' }}>All caught up — every task on your plate is complete. ✓</div>}
           {myTasks.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
               {myTasks.slice(0, 10).map(({ p, t }, i) => {

@@ -320,7 +320,11 @@
   .lh-doc { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); font-weight: 600; }
   .lh-period { font-size: 15px; font-weight: 600; margin-top: 3px; font-family: 'Geist Mono', monospace; }
   .tb-project { font-size: 23px; font-weight: 700; letter-spacing: -0.02em; margin-top: 20px; }
-  .tb-meta { display: flex; gap: 20px; margin-top: 9px; flex-wrap: wrap; }
+  /* A grid, not a flex row: five fields of very different widths wrapped raggedly, so
+     nothing in the second row lined up under anything in the first. Fixed columns put
+     every label on the same left edge. Location spans two — it is the long one. */
+  .tb-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px 22px; margin-top: 11px; }
+  .tb-meta .m-wide { grid-column: span 2; }
   .tb-meta .m .l { color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; font-weight: 600; }
   .tb-meta .m .v { color: var(--ink); font-weight: 500; margin-top: 1px; font-size: 12px; }
   .changes-box { margin-top: 20px; border: 1px solid var(--hl-edge); background: linear-gradient(0deg, #fffdf5, #fffbeb); border-radius: 10px; padding: 13px 16px; }

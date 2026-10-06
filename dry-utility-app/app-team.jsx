@@ -278,7 +278,7 @@ function TeamPage({ projects, users, canWrite, onTaskAssign, onOpenProject, show
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-4)' }}>Open load = unapproved tasks either assigned to the person or unassigned on projects they PM. There is no per-person cap — bars are scaled against the busiest person. Click a row to see the task list.</div>
+      <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-4)' }}>Open load = incomplete tasks either assigned to the person or unassigned on projects they PM. There is no per-person cap — bars are scaled against the busiest person. Click a row to see the task list.</div>
     </div>
   );
 }

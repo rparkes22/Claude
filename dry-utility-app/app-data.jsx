@@ -131,9 +131,11 @@ const CITY_AGENCIES = {
   'Indio':       ['iid', 'sce', 'socalgas', 'scgt', 'cityin', 'countyriv', 'frontier', 'iwa', 'vsd', 'cvwd', 'myoma', 'spectrum', 'sprint'],
   'La Quinta':   ['iid', 'sce', 'socalgas', 'scgt', 'citylq', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
   'Palm Desert': ['sce', 'socalgas', 'scgt', 'citypd', 'countyriv', 'cvwd', 'myoma', 'frontier', 'spectrum'],
-  'Palm Springs':       ['sce', 'socalgas', 'scgt', 'citypsp', 'countyriv', 'dwa', 'frontier', 'spectrum', 'sprint'],
+  // CVWD runs sanitation across much of the west valley alongside the local water
+  // purveyor, so Palm Springs and Desert Hot Springs need it offered too.
+  'Palm Springs':       ['sce', 'socalgas', 'scgt', 'citypsp', 'countyriv', 'dwa', 'cvwd', 'frontier', 'spectrum', 'sprint'],
   'Cathedral City':     ['sce', 'socalgas', 'scgt', 'cityccy', 'countyriv', 'cvwd', 'dwa', 'frontier', 'spectrum'],
-  'Desert Hot Springs': ['sce', 'socalgas', 'scgt', 'citydhs', 'countyriv', 'mswd', 'hdwd', 'frontier', 'spectrum'],
+  'Desert Hot Springs': ['sce', 'socalgas', 'scgt', 'citydhs', 'countyriv', 'mswd', 'hdwd', 'cvwd', 'frontier', 'spectrum'],
   'Rancho Mirage':      ['sce', 'socalgas', 'scgt', 'cityrm', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
   'Indian Wells':       ['sce', 'socalgas', 'scgt', 'cityiw', 'countyriv', 'cvwd', 'frontier', 'spectrum'],
   // Morongo Basin — San Bernardino County, SCE rather than IID territory. Joshua Tree
@@ -711,9 +713,12 @@ const PHASE_META = {
   'Complete': { badge: 'b-ok' },
 };
 const PHASES = Object.keys(PHASE_META);
+// One wording for a task's state everywhere it appears — the picker, the badges, the
+// dashboard and the client report. "Approved" belongs to an agency decision (see
+// EAR_STATES); a task is simply complete or it isn't.
 const SUB_META = {
-  ok: { cls: 'sd-ok', label: 'Approved', badge: 'b-ok' },
-  review: { cls: 'sd-review', label: 'In review', badge: 'b-amber' },
+  ok: { cls: 'sd-ok', label: 'Complete', badge: 'b-ok' },
+  review: { cls: 'sd-review', label: 'In progress', badge: 'b-amber' },
   resubmit: { cls: 'sd-resubmit', label: 'Resubmit', badge: 'b-warn' },
   none: { cls: 'sd-none', label: 'Not started', badge: 'b-gray' },
 };
