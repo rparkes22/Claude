@@ -1,10 +1,9 @@
 // 2026-27 Coachella Valley Firebirds home schedule (Acrisure Arena, Pacific time).
 //
-// Compiled from the team's July 9, 2026 schedule release, the Aug. 3, 2026 theme-night
-// release, and the Sept. 16, 2026 giveaway calendar as reported by KESQ, NBC Palm Springs,
-// Patch, OurSports Central and Acrisure Arena listings. The team announced 36 home games;
-// 33 are listed here. Sources disagreed on a few dates, so verify against
-// https://cvfirebirds.com/schedule/2026-27-schedule/ and edit games in the admin panel.
+// Dates and times verified against https://cvfirebirds.com/schedule/2026-27-schedule/
+// on Oct. 8, 2026 (all 36 home games). Theme nights and giveaways come from the team's
+// Aug. 3, 2026 theme-night release and Sept. 16, 2026 giveaway calendar. Edit games in
+// the admin panel if the team changes anything.
 //
 // Dates are YYYY-MM-DD, times are 24h local (America/Los_Angeles).
 
@@ -27,21 +26,24 @@ export const GAMES = [
   { date: '2026-12-06', time: '17:00', opponent: 'Bakersfield Condors', theme: 'Route 66 Night', giveaway: 'Car sun shade' },
   { date: '2026-12-08', time: '19:00', opponent: 'Calgary Wranglers', theme: '', giveaway: '' },
   { date: '2026-12-16', time: '19:00', opponent: 'San Jose Barracuda', theme: '', giveaway: '' },
-  { date: '2026-12-20', time: '17:00', opponent: 'San Diego Gulls', theme: 'Teddy Bear Toss', giveaway: '', notes: 'Start time unconfirmed (Sunday games are 3 or 5 p.m.)' },
+  { date: '2026-12-20', time: '17:00', opponent: 'San Diego Gulls', theme: 'Teddy Bear Toss', giveaway: '' },
+  { date: '2026-12-27', time: '15:00', opponent: 'Ontario Reign', theme: '', giveaway: '' },
   { date: '2026-12-31', time: '17:00', opponent: 'San Diego Gulls', theme: "New Year's Eve", giveaway: '' },
   { date: '2027-01-08', time: '19:00', opponent: 'Henderson Silver Knights', theme: '', giveaway: '' },
   { date: '2027-01-09', time: '18:00', opponent: 'Henderson Silver Knights', theme: 'Pride Night', giveaway: 'Sherpa bucket hat' },
   { date: '2027-01-13', time: '19:00', opponent: 'Calgary Wranglers', theme: 'Canadian Night', giveaway: '' },
   { date: '2027-01-17', time: '17:00', opponent: 'San Diego Gulls', theme: "Kids' Night", giveaway: 'Kids jersey' },
   { date: '2027-01-23', time: '18:00', opponent: 'Bakersfield Condors', theme: 'First Responders Night', giveaway: '' },
-  { date: '2027-02-11', time: '19:00', opponent: 'Tucson Roadrunners', theme: '', giveaway: '', notes: 'Date unconfirmed (sources list Feb. 4 or Feb. 11)' },
-  { date: '2027-02-13', time: '18:00', opponent: 'Calgary Wranglers', theme: '', giveaway: '' },
+  { date: '2027-02-03', time: '19:00', opponent: 'Tucson Roadrunners', theme: '', giveaway: '' },
+  { date: '2027-02-12', time: '19:00', opponent: 'Calgary Wranglers', theme: '', giveaway: '' },
+  { date: '2027-02-19', time: '19:00', opponent: 'Colorado Eagles', theme: '', giveaway: '' },
   { date: '2027-02-20', time: '18:00', opponent: 'Colorado Eagles', theme: 'Kraken Night', giveaway: 'Kokko bobblehead' },
-  { date: '2027-02-27', time: '18:00', opponent: 'Bakersfield Condors', theme: 'Coachella Valley Lakers Night', giveaway: '', notes: 'Date unconfirmed (sources list Feb. 27 or Feb. 28)' },
+  { date: '2027-02-27', time: '18:00', opponent: 'Bakersfield Condors', theme: 'Coachella Valley Lakers Night', giveaway: '' },
+  { date: '2027-03-03', time: '19:00', opponent: 'San Jose Barracuda', theme: '', giveaway: '' },
   { date: '2027-03-12', time: '19:00', opponent: 'Texas Stars', theme: "Yacht Rock / 80's Night", giveaway: '' },
-  { date: '2027-03-14', time: '17:00', opponent: 'Colorado Eagles', theme: "Fuego's Birthday", giveaway: 'Fuego plush keychain', notes: 'Start time unconfirmed (Sunday games are 3 or 5 p.m.)' },
+  { date: '2027-03-14', time: '15:00', opponent: 'Colorado Eagles', theme: "Fuego's Birthday", giveaway: 'Fuego plush keychain' },
   { date: '2027-03-17', time: '19:00', opponent: 'Texas Stars', theme: "St. Patrick's Day", giveaway: '' },
-  { date: '2027-03-27', time: '18:00', opponent: 'Tucson Roadrunners', theme: '', giveaway: '' },
+  { date: '2027-03-26', time: '19:00', opponent: 'Tucson Roadrunners', theme: '', giveaway: '' },
   { date: '2027-03-31', time: '19:00', opponent: 'Abbotsford Canucks', theme: 'Teacher Appreciation Night', giveaway: '' },
   { date: '2027-04-03', time: '18:00', opponent: 'Ontario Reign', theme: 'Fan Appreciation Night', giveaway: 'Hockey stick can cooler' },
 ];

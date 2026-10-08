@@ -77,14 +77,7 @@ The "draw lead time" setting only controls the expected draw date shown to staff
 
 ## Schedule data
 
-The seed schedule in `src/seed.js` is the 2026-27 home schedule compiled from the team's press releases as reported by KESQ, NBC Palm Springs, Patch, OurSports Central and Acrisure Arena listings. The team site itself could not be fetched from the build environment, so **verify against [cvfirebirds.com](https://cvfirebirds.com/schedule/2026-27-schedule/) before relying on it**.
-
-Known gaps:
-
-- The team announced 36 home games. 33 are seeded. The missing three are most likely in February through April 2027.
-- Dates marked with a note in the app (Tucson in February, Bakersfield on Lakers Night, and the Sunday start times for Teddy Bear Toss and Fuego's Birthday) had conflicting reports.
-
-All games, including dates, times, themes and giveaways, can be edited, added or deleted in the admin panel, so no code change is needed to fix the schedule.
+The seed schedule in `src/seed.js` holds all 36 home games for 2026-27, with dates and times verified against the team's official schedule page on Oct. 8, 2026. Theme nights and giveaways come from the team's press releases. Games can be edited, added or deleted in the admin panel, so no code change is needed if the team changes a date.
 
 ## Project layout
 
