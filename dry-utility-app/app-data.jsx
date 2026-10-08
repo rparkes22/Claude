@@ -124,7 +124,9 @@ const CITY_AGENCIES = {
   'Westmorland': ['iid', 'socalgas', 'county', 'frontier'],
   'Niland':      ['iid', 'socalgas', 'county', 'frontier'],
   'Heber':       ['iid', 'socalgas', 'county', 'att'],
-  'Coachella':   ['iid', 'sce', 'socalgas', 'scgt', 'citych', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
+  // Coachella has its own municipal water agency alongside CVWD, which still handles
+  // the regional drains, so a project inside the city usually touches both.
+  'Coachella':   ['iid', 'sce', 'socalgas', 'scgt', 'citych', 'countyriv', 'cvwd', 'cwa', 'frontier', 'spectrum', 'sprint'],
   'Thermal':     ['iid', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
   'Mecca':       ['iid', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
   'County of Riverside': ['iid', 'sce', 'socalgas', 'scgt', 'countyriv', 'cvwd', 'frontier', 'spectrum', 'sprint'],
@@ -225,6 +227,7 @@ const AGENCIES = {
   mvcsd:    { id: 'mvcsd',    name: 'Morongo Valley Community Services District', short: 'MVCSD', kind: 'Water', note: 'Water research & will-serve — Morongo Valley' },
   mswd:     { id: 'mswd',     name: 'Mission Springs Water District', short: 'MSWD', kind: 'Water',  note: 'Water & sewer research — Desert Hot Springs area' },
   cvwd:     { id: 'cvwd',     name: 'Coachella Valley Water District', short: 'CVWD', kind: 'Water',  note: 'Water / drain research & will-serve — PRARequests@cvwd.org' },
+  cwa:      { id: 'cwa',      name: 'Coachella Water Agency',       short: 'CWA', kind: 'Water',    note: 'Water & sewer research and will-serve — City of Coachella service area' },
   vsd:      { id: 'vsd',      name: 'Valley Sanitary District',     short: 'VSD', kind: 'Sewer',    note: 'Sewer research & capacity — 45-500 Van Buren, Indio' },
   iwa:      { id: 'iwa',      name: 'Indio Water Authority',        short: 'IWA', kind: 'Water',    note: 'Water research & will-serve — IWAEngineering@indio.org' },
   myoma:    { id: 'myoma',    name: 'Myoma Dunes Mutual Water Co.', short: 'MYO', kind: 'Water',    note: 'Water research — Bermuda Dunes area' },

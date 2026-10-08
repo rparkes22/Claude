@@ -58,6 +58,9 @@ module.exports = function check(dir) {
     const line = (data.match(new RegExp(`'${c}':[^\\]]*\\]`)) || [''])[0];
     if (!/'cvwd'/.test(line)) fail(`${c} is missing CVWD`);
   }
+  if (!/cwa:\s*\{/.test(data)) fail('the Coachella Water Agency is not in the directory');
+  if (!/'cwa'/.test((data.match(/'Coachella':[^\]]*\]/) || [''])[0]))
+    fail('Coachella is missing its own water agency');
   // one word for a task's state; "Approved" belongs to the agency's own decision
   if (/label: 'Approved'/.test(data)) fail('a task status is still labelled Approved');
   if (!/ok: \{ cls: 'sd-ok', label: 'Complete'/.test(data)) fail('app-data.jsx predates the Complete wording');
