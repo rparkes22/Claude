@@ -53,7 +53,7 @@ export const DEFAULT_PERKS = [
   { icon: '🎟️', title: 'Seats', detail: 'Four tickets in Section 205, Row C, Seats 1-4.' },
   { icon: '🍔', title: 'Free meal', detail: 'Each ticket is good for one free meal at the 2nd level food venues.' },
   { icon: '🅿️', title: 'VIP parking', detail: 'VIP Lot B parking pass.' },
-  { icon: '🧢', title: 'Merch discount', detail: 'Show your ticket for 20% off Firebirds merchandise.' },
+  { icon: '🧢', title: 'Merch discount', detail: 'Show your ticket for 15% off Firebirds merchandise.' },
 ];
 
 export const DEFAULT_SETTINGS = {

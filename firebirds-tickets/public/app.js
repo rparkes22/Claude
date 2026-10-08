@@ -73,7 +73,7 @@
 
   function renderPerks() {
     const s = state.settings;
-    $('#perks-tag').textContent = `${s.tickets_per_game || 2} tickets per game, on the company.`;
+    $('#perks-tag').textContent = `${s.tickets_per_game || 4} company season tickets per game.`;
     const box = $('#perks'); box.replaceChildren();
     for (const p of s.perks || []) {
       box.append(el('div', { class: 'perk' }, el('div', { class: 'icon' }, p.icon || '⭐'), el('div', {}, el('strong', {}, p.title), el('span', {}, p.detail))));
