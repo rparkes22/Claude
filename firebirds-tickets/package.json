@@ -6,14 +6,16 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=22.13"
+    "node": "22.x"
   },
   "scripts": {
-    "start": "node --no-warnings=ExperimentalWarning src/server.js",
-    "dev": "node --no-warnings=ExperimentalWarning --watch src/server.js",
-    "test": "node --no-warnings=ExperimentalWarning --test \"test/**/*.test.js\""
+    "start": "node src/server.js",
+    "dev": "PGLITE_DIR=./data/pglite node --watch src/server.js",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "@electric-sql/pglite": "^0.3.16",
+    "express": "^4.21.2",
+    "pg": "^8.23.1"
   }
 }

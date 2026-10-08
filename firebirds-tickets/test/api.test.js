@@ -5,21 +5,22 @@ import { createAuth } from '../src/auth.js';
 import { createApp } from '../src/app.js';
 
 // Freeze "now" to Oct 8, 2026 10:00 Pacific so seeded games have predictable status.
+// Runs against an in-memory PGlite database (same SQL as production Postgres).
 const NOW = new Date('2026-10-08T17:00:00Z');
 
 let server, base, db, cookie = '';
 
 before(async () => {
-  db = openDatabase(':memory:');
+  db = await openDatabase();
   const auth = createAuth({ password: 'secret', secret: 'test-secret', secureCookies: false });
-  const app = createApp({ db, auth, now: () => NOW });
+  const app = createApp({ getDb: async () => db, auth, now: () => NOW });
   await new Promise((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => server.close());
+after(async () => { server.close(); await db.close(); });
 
-beforeEach(() => db.exec('DELETE FROM winners; DELETE FROM entries;'));
+beforeEach(async () => { await db.query('DELETE FROM winners'); await db.query('DELETE FROM entries'); });
 
 async function call(method, path, body, asAdmin = false) {
   const headers = { 'Content-Type': 'application/json' };
@@ -34,8 +35,8 @@ async function login() {
   cookie = r.headers.get('set-cookie').split(';')[0];
 }
 
-function futureGames() {
-  return db.prepare("SELECT * FROM games WHERE date > '2026-10-08' ORDER BY date").all();
+async function futureGames() {
+  return (await db.query("SELECT * FROM games WHERE date > '2026-10-08' ORDER BY date")).rows;
 }
 
 test('schedule lists seeded games with status', async () => {
@@ -51,7 +52,7 @@ test('schedule lists seeded games with status', async () => {
 });
 
 test('staff can enter a game once, and email is normalised', async () => {
-  const [g] = futureGames();
+  const [g] = await futureGames();
   let r = await call('POST', `/api/games/${g.id}/entries`, { name: 'Ada Lovelace', email: ' Ada@Example.com ' });
   assert.equal(r.status, 201);
   r = await call('POST', `/api/games/${g.id}/entries`, { name: 'Ada', email: 'ada@example.com' });
@@ -62,16 +63,16 @@ test('staff can enter a game once, and email is normalised', async () => {
 });
 
 test('validation rejects bad input and past games', async () => {
-  const [g] = futureGames();
+  const [g] = await futureGames();
   assert.equal((await call('POST', `/api/games/${g.id}/entries`, { name: 'A', email: 'a@b.co' })).status, 400);
   assert.equal((await call('POST', `/api/games/${g.id}/entries`, { name: 'Alice', email: 'nope' })).status, 400);
-  const past = db.prepare("SELECT id FROM games WHERE date = '2026-10-02'").get();
+  const past = (await db.query("SELECT id FROM games WHERE date = '2026-10-02'")).rows[0];
   assert.equal((await call('POST', `/api/games/${past.id}/entries`, { name: 'Alice', email: 'a@b.co' })).status, 409);
   assert.equal((await call('POST', '/api/games/99999/entries', { name: 'Alice', email: 'a@b.co' })).status, 404);
 });
 
 test('staff can withdraw an entry', async () => {
-  const [g] = futureGames();
+  const [g] = await futureGames();
   await call('POST', `/api/games/${g.id}/entries`, { name: 'Bob Smith', email: 'bob@x.io' });
   let r = await call('DELETE', `/api/games/${g.id}/entries`, { email: 'bob@x.io' });
   assert.equal(r.status, 200);
@@ -88,7 +89,7 @@ test('admin routes require login', async () => {
 
 test('drawing picks an entrant, blocks them from future games, and removes their other entries', async () => {
   await login();
-  const [g1, g2, g3] = futureGames();
+  const [g1, g2, g3] = await futureGames();
   for (const [name, email] of [['Ann', 'ann@x.io'], ['Ben', 'ben@x.io'], ['Cy', 'cy@x.io']]) {
     await call('POST', `/api/games/${g1.id}/entries`, { name, email });
     await call('POST', `/api/games/${g2.id}/entries`, { name, email });
@@ -134,10 +135,10 @@ test('drawing picks an entrant, blocks them from future games, and removes their
 
 test('draw excludes entrants who won another game after entering', async () => {
   await login();
-  const [g1, g2] = futureGames();
+  const [g1, g2] = await futureGames();
   // Zed enters g2 first, then wins g1 via a direct winners insert (simulating a prior season state).
   await call('POST', `/api/games/${g2.id}/entries`, { name: 'Zed', email: 'zed@x.io' });
-  db.prepare('INSERT INTO winners (game_id, name, email, pool_size) VALUES (?, ?, ?, 1)').run(g1.id, 'Zed', 'zed@x.io');
+  await db.query('INSERT INTO winners (game_id, name, email, pool_size) VALUES ($1, $2, $3, 1)', [g1.id, 'Zed', 'zed@x.io']);
   assert.equal((await call('POST', `/api/admin/games/${g2.id}/draw`, undefined, true)).status, 409);
 });
 
@@ -165,11 +166,11 @@ test('admin can update perks and settings, and reset the season', async () => {
   assert.equal(s.tickets_per_game, '4');
   assert.equal((await call('PUT', '/api/admin/settings', { draw_lead_days: 99 }, true)).status, 400);
 
-  const [g] = futureGames();
+  const [g] = await futureGames();
   await call('POST', `/api/games/${g.id}/entries`, { name: 'Fay', email: 'fay@x.io' });
   assert.equal((await call('POST', '/api/admin/reset-season', { confirm: 'nope' }, true)).status, 400);
   assert.equal((await call('POST', '/api/admin/reset-season', { confirm: 'RESET' }, true)).status, 200);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM entries').get().n, 0);
+  assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM entries')).rows[0].n, 0);
   // restore defaults for other tests
   await call('PUT', '/api/admin/settings', { draw_lead_days: 3 }, true);
 });

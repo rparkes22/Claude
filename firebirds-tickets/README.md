@@ -14,13 +14,15 @@ A small internal web app for giving away company tickets to Coachella Valley Fir
 
 ## Run it
 
-Requires Node 22.13 or newer (it uses the built-in SQLite module, so there are no native dependencies).
+Requires Node 22.
 
 ```bash
 cd firebirds-tickets
 npm install
-ADMIN_PASSWORD=choose-a-password npm start
+ADMIN_PASSWORD=choose-a-password npm run dev
 ```
+
+Without `DATABASE_URL` the app uses an embedded PGlite database (Postgres compiled to WebAssembly). `npm run dev` keeps it on disk under `data/`; `npm start` without `DATABASE_URL` keeps it in memory. Set `DATABASE_URL` to a Postgres connection string (Supabase, Neon, RDS, etc.) for production.
 
 Open http://localhost:3000 for the staff page and http://localhost:3000/admin for the admin panel.
 
@@ -29,21 +31,31 @@ Copy `.env.example` to see all settings. The important ones:
 | Variable | Purpose |
 | --- | --- |
 | `ADMIN_PASSWORD` | Required. Password for the admin panel. |
+| `DATABASE_URL` | Postgres connection string. When unset, embedded PGlite is used. |
+| `PGLITE_DIR` | Optional. On-disk location for the embedded database. |
 | `SESSION_SECRET` | Optional. Signs the admin cookie. Set it so admins stay logged in across restarts. |
-| `DB_PATH` | Optional. SQLite file location, default `./data/firebirds.db`. |
 | `PORT` | Optional. Default 3000. |
-| `SECURE_COOKIES` | Set to `1` when serving over HTTPS. |
+| `SECURE_COOKIES` | Set to `1` when serving over HTTPS (automatic on Vercel). |
 
-The database and seed schedule are created automatically on first start.
+The tables and seed schedule are created automatically on first start.
 
-### Docker
+### Vercel + Supabase (how the live site is hosted)
+
+`vercel.json` routes `/api/*` to the Express app in `api/index.js` and serves `public/` as static files. Set these environment variables on the Vercel project:
+
+- `DATABASE_URL`: the Supabase connection string (use the transaction pooler on port 6543 for serverless).
+- `ADMIN_PASSWORD`, `SESSION_SECRET`.
+
+Every push to the connected branch deploys automatically.
+
+### Docker / any Node host
 
 ```bash
 docker build -t firebirds-tickets .
 docker run -p 3000:3000 -v firebirds-data:/data -e ADMIN_PASSWORD=choose-a-password firebirds-tickets
 ```
 
-Any host that runs a Node or Docker service with a persistent disk works (Render, Railway, Fly.io, an internal VM). Mount persistent storage at the database path or entries are lost on redeploy.
+Pass `DATABASE_URL` for Postgres, or mount persistent storage at `/data` to keep the embedded database across restarts.
 
 ### Tests
 
@@ -75,14 +87,16 @@ All games, including dates, times, themes and giveaways, can be edited, added or
 ## Project layout
 
 ```
-src/server.js   entry point, reads env and starts the server
+src/server.js   plain Node entry point
+api/index.js    Vercel serverless entry point
+src/bootstrap.js opens the database once per process and builds the app
 src/app.js      Express routes (public API, admin API, static files)
-src/db.js       SQLite schema and first-run seeding
+src/db.js       schema, first-run seeding, Postgres (pg) and PGlite backends
 src/auth.js     admin password check and signed session cookie
 src/time.js     Pacific-time helpers
 src/seed.js     home schedule, default perks and settings
 public/         staff page (index.html, app.js), admin page (admin.html, admin.js), styles.css
-test/           API tests (node --test)
+test/           API tests (node --test, against in-memory PGlite)
 ```
 
 ## API summary
