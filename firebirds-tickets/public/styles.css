@@ -48,7 +48,7 @@ input, textarea, select { font: inherit; }
 .identity .btn { flex: 0 0 auto; }
 .me-status { margin-top: 10px; font-size: 0.92rem; color: var(--gold); min-height: 1.3em; }
 
-main { padding: 24px 0 60px; }
+main.wrap { padding-top: 28px; padding-bottom: 60px; }
 .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
 @media (min-width: 900px) { .grid { grid-template-columns: 2fr 1fr; } }
 
