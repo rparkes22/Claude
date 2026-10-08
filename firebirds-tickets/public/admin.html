@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Firebirds Ticket Lottery</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23c8102e%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-size=%2736%27 text-anchor=%27middle%27%3E🔥%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="hero" style="padding-bottom: 22px;">
+    <div class="wrap admin-bar">
+      <div class="brand">
+        <div class="flame">🔥</div>
+        <div><h1>Lottery Admin</h1><p class="sub">Draw winners, manage games and perks</p></div>
+      </div>
+      <div>
+        <a href="/" style="color:#fff;margin-right:12px;">← Staff page</a>
+        <button class="btn ghost small" id="logout-btn" hidden>Log out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="login-box panel" id="login-panel" hidden>
+      <h3>Admin login</h3>
+      <form id="login-form">
+        <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>
+        <div class="actions"><button class="btn" type="submit">Log in</button></div>
+      </form>
+    </div>
+
+    <div id="admin-panel" hidden>
+      <div class="tabs">
+        <button class="active" data-tab="games">Games & drawings</button>
+        <button data-tab="winners">Winners</button>
+        <button data-tab="settings">Perks & settings</button>
+      </div>
+
+      <section id="tab-games">
+        <div class="stat-row" id="stats"></div>
+        <div class="panel">
+          <div class="admin-bar" style="margin-bottom:10px;">
+            <strong>Home games</strong>
+            <button class="btn small" id="add-game-btn">+ Add game</button>
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Date</th><th>Opponent</th><th>Theme / giveaway</th><th>Entries</th><th>Status</th><th></th></tr></thead>
+            <tbody id="games-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section id="tab-winners" hidden>
+        <div class="panel">
+          <strong>Season winners</strong>
+          <p class="muted" style="margin:4px 0 12px;">Winners are blocked from entering any other game this season. Undo a draw if someone can't attend, then draw again.</p>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Game</th><th>Winner</th><th>Email</th><th>Drawn</th><th>Pool</th><th></th></tr></thead>
+            <tbody id="winners-body"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <section id="tab-settings" hidden>
+        <div class="panel">
+          <strong>Perks shown to staff</strong>
+          <p class="muted" style="margin:4px 0 12px;">Icon, title, details. Blank titles are dropped.</p>
+          <div id="perk-rows"></div>
+          <button class="btn ghost small" id="add-perk-btn" type="button">+ Add perk</button>
+        </div>
+        <div class="panel">
+          <strong>Settings</strong>
+          <div class="field" style="margin-top:10px;"><label for="s-season">Season label</label><input id="s-season"></div>
+          <div class="field"><label for="s-intro">Intro text (top of staff page)</label><textarea id="s-intro" rows="3"></textarea></div>
+          <div class="field"><label for="s-tickets">Tickets per game</label><input id="s-tickets" type="number" min="1" style="max-width:120px;"></div>
+          <div class="field"><label for="s-lead">Draw lead time (days before game)</label><input id="s-lead" type="number" min="0" max="60" style="max-width:120px;">
+            <div class="hint">Shown to staff as the expected draw date. Drawings are still run manually from the Games tab.</div></div>
+          <div class="actions" style="justify-content:flex-start;"><button class="btn" id="save-settings-btn">Save perks & settings</button></div>
+        </div>
+        <div class="panel">
+          <strong>Danger zone</strong>
+          <p class="muted" style="margin:4px 0 12px;">Reset wipes every entry and winner for a new season. Games and perks are kept.</p>
+          <button class="btn danger small" id="reset-btn">Reset season</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="entries-dialog" class="wide">
+    <form method="dialog">
+      <h3 id="entries-title"></h3>
+      <p class="sub" id="entries-sub"></p>
+      <div id="winner-reveal" class="winner-reveal" hidden></div>
+      <div class="tbl-wrap" style="max-height:50vh;overflow:auto;"><table>
+        <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Entered</th><th></th></tr></thead>
+        <tbody id="entries-body"></tbody>
+      </table></div>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="entries-close">Close</button>
+        <button class="btn" type="button" id="draw-btn">🎲 Draw winner</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="game-dialog">
+    <form id="game-form">
+      <h3 id="game-title">Game</h3>
+      <div class="field"><label for="g-date">Date</label><input id="g-date" type="date" required></div>
+      <div class="field"><label for="g-time">Puck drop (Pacific)</label><input id="g-time" type="time" required></div>
+      <div class="field"><label for="g-opp">Opponent</label><input id="g-opp" required maxlength="80"></div>
+      <div class="field"><label for="g-theme">Theme night</label><input id="g-theme" maxlength="200"></div>
+      <div class="field"><label for="g-give">Giveaway</label><input id="g-give" maxlength="200"></div>
+      <div class="field"><label for="g-notes">Notes (shown to staff)</label><input id="g-notes" maxlength="500"></div>
+      <div class="field"><label><input id="g-active" type="checkbox" checked> Accepting entries</label></div>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="game-cancel">Cancel</button>
+        <button class="btn" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast"></div>
+  <script src="/admin.js"></script>
+</body>
+</html>

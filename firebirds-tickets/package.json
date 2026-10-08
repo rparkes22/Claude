@@ -1,0 +1,19 @@
+{
+  "name": "firebirds-tickets",
+  "version": "1.0.0",
+  "description": "Staff ticket lottery for Coachella Valley Firebirds home games",
+  "main": "src/server.js",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning src/server.js",
+    "dev": "node --no-warnings=ExperimentalWarning --watch src/server.js",
+    "test": "node --no-warnings=ExperimentalWarning --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
