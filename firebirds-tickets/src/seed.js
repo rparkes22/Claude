@@ -48,16 +48,16 @@ export const GAMES = [
 
 // Perks shown on the public page. Edit in the admin panel; these are starting values.
 export const DEFAULT_PERKS = [
-  { icon: '🎟️', title: 'Seats', detail: 'Two tickets. Section and row to be confirmed in the admin panel.' },
-  { icon: '🍔', title: 'Food & drink', detail: 'Complimentary food and non-alcoholic drinks with the tickets.' },
-  { icon: '🅿️', title: 'VIP parking', detail: 'One VIP parking pass at Acrisure Arena.' },
-  { icon: '🧢', title: 'Merch discount', detail: 'Discount on Firebirds merchandise at the team store.' },
+  { icon: '🎟️', title: 'Seats', detail: 'Four tickets in Section 205, Row C, Seats 1-4.' },
+  { icon: '🍔', title: 'Free meal', detail: 'Each ticket is good for one free meal at the 2nd level food venues.' },
+  { icon: '🅿️', title: 'VIP parking', detail: 'VIP Lot B parking pass.' },
+  { icon: '🧢', title: 'Merch discount', detail: 'Show your ticket for 20% off Firebirds merchandise.' },
 ];
 
 export const DEFAULT_SETTINGS = {
   season_label: SEASON_LABEL,
   draw_lead_days: '3',
-  tickets_per_game: '2',
+  tickets_per_game: '4',
   intro_text: 'Pick the home games you would like to attend. A few days before each game we randomly draw one name from everyone who entered. Win once and you are set for the season so everyone gets a turn.',
   perks: JSON.stringify(DEFAULT_PERKS),
 };
