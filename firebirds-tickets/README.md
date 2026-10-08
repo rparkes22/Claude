@@ -1,5 +1,7 @@
 # Firebirds Ticket Lottery
 
+Live site: https://firebirds-tickets.vercel.app (admin at `/admin`). Hosted on Vercel (team "msa projects") with Supabase Postgres (project `firebirds-tickets`, schema `firebirds`).
+
 A small internal web app for giving away company tickets to Coachella Valley Firebirds home games.
 
 - Staff see the season's home schedule at Acrisure Arena with theme nights and giveaways.
@@ -43,10 +45,10 @@ The tables and seed schedule are created automatically on first start.
 
 `vercel.json` routes `/api/*` to the Express app in `api/index.js` and serves `public/` as static files. Set these environment variables on the Vercel project:
 
-- `DATABASE_URL`: the Supabase connection string (use the transaction pooler on port 6543 for serverless).
+- `DATABASE_URL`: the Supabase connection string. Use the shared transaction pooler (`aws-1-ca-central-1.pooler.supabase.com:6543`) with the dedicated `firebirds` role; Vercel functions are IPv4-only so the direct `db.*.supabase.co` host does not work.
 - `ADMIN_PASSWORD`, `SESSION_SECRET`.
 
-Every push to the connected branch deploys automatically.
+The app's role owns the `firebirds` schema and its tables (see the Supabase migrations `firebirds_schema_and_role` and `firebirds_table_ownership`). Every push to the connected branch deploys automatically.
 
 ### Docker / any Node host
 
