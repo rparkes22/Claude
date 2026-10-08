@@ -72,7 +72,7 @@
     if (g.status === 'drawn') return `🏆 ${g.winner.name}`;
     if (g.status === 'past') return 'Played';
     if (g.status === 'closed') return 'Closed';
-    return g.expected_draw_date <= state.today ? '⏰ Ready to draw' : `Open · draw ${fmtDate(g.expected_draw_date)}`;
+    return g.expected_draw_date <= state.today ? '⏰ Ready to draw' : `Open · draw early ${MON[Number(g.date.slice(5, 7)) - 1]}`;
   }
 
   function renderGames() {
@@ -100,7 +100,7 @@
       body.append(el('tr', {},
         el('td', {}, `${fmtDate(w.date)} vs. ${w.opponent}`), el('td', {}, w.name), el('td', {}, w.email),
         el('td', {}, fmtStamp(w.drawn_at)), el('td', {}, `${w.pool_size} entered`),
-        el('td', {}, el('button', { class: 'btn ghost small', onclick: () => undoWinner(w) }, 'Undo draw'))));
+        el('td', {}, el('button', { class: 'btn ghost small', onclick: () => undoWinner(w) }, 'Return tickets'))));
     }
   }
 
@@ -142,8 +142,8 @@
   $('#entries-close').addEventListener('click', () => $('#entries-dialog').close());
 
   async function undoWinner(w) {
-    if (!confirm(`Undo the draw for ${w.opponent} on ${fmtDate(w.date)}? ${w.name} will no longer be the winner and becomes eligible again.`)) return;
-    try { await api(`/api/admin/games/${w.game_id}/winner`, { method: 'DELETE' }); toast('Draw undone'); await refresh(); }
+    if (!confirm(`Return the tickets for ${w.opponent} on ${fmtDate(w.date)} to the pool? ${w.name} will no longer be the winner, their other entries are restored, and they can enter again.`)) return;
+    try { const r = await api(`/api/admin/games/${w.game_id}/winner`, { method: 'DELETE' }); toast(`Draw undone. ${r.restored} other entr${r.restored === 1 ? 'y' : 'ies'} restored.`); await refresh(); }
     catch (err) { toast(err.message, true); }
   }
 
@@ -187,7 +187,7 @@
     const s = state.settings;
     $('#perk-rows').replaceChildren(...(s.perks || []).map(perkRow));
     $('#s-season').value = s.season_label || ''; $('#s-intro').value = s.intro_text || '';
-    $('#s-tickets').value = s.tickets_per_game || 2; $('#s-lead').value = s.draw_lead_days ?? 3;
+    $('#s-tickets').value = s.tickets_per_game || 2;
   }
   $('#add-perk-btn').addEventListener('click', () => $('#perk-rows').append(perkRow()));
   $('#save-settings-btn').addEventListener('click', async () => {
@@ -195,7 +195,7 @@
       icon: r.querySelector('[data-k=icon]').value, title: r.querySelector('[data-k=title]').value, detail: r.querySelector('[data-k=detail]').value,
     }));
     try {
-      await api('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ perks, season_label: $('#s-season').value, intro_text: $('#s-intro').value, tickets_per_game: $('#s-tickets').value, draw_lead_days: $('#s-lead').value }) });
+      await api('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ perks, season_label: $('#s-season').value, intro_text: $('#s-intro').value, tickets_per_game: $('#s-tickets').value}) });
       toast('Saved'); await refresh();
     } catch (err) { toast(err.message, true); }
   });

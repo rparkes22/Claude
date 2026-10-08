@@ -69,7 +69,6 @@
     const s = state.settings;
     $('#season-label').textContent = `Coachella Valley Firebirds · Acrisure Arena · ${s.season_label || ''}`;
     $('#intro-text').textContent = s.intro_text || '';
-    $('#lead-days').textContent = s.draw_lead_days;
   }
 
   function renderPerks() {
@@ -131,7 +130,7 @@
     } else if (g.status === 'closed') {
       action.append(el('span', { class: 'status-text' }, 'Entries closed'));
     } else {
-      action.append(el('span', { class: 'count' }, `${g.entry_count} entered · draw ~${fmtDate(g.expected_draw_date)}`));
+      action.append(el('span', { class: 'count' }, `${g.entry_count} entered · drawn early ${parts(g.date).mon}`));
       if (iWon) {
         action.append(el('span', { class: 'status-text' }, 'Already a winner this season'));
       } else if (entered) {

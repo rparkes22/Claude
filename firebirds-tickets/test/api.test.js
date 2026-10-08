@@ -47,7 +47,7 @@ test('schedule lists seeded games with status', async () => {
   assert.equal(opener.status, 'past');
   const next = r.body.games.find((g) => g.date === '2026-10-09');
   assert.equal(next.status, 'open');
-  assert.equal(next.expected_draw_date, '2026-10-06');
+  assert.equal(next.expected_draw_date, '2026-10-01');
   assert.ok(Array.isArray(r.body.settings.perks));
 });
 
@@ -128,8 +128,12 @@ test('drawing picks an entrant, blocks them from future games, and removes their
   // Entering a drawn game is refused.
   assert.equal((await call('POST', `/api/games/${g1.id}/entries`, { name: 'Dee', email: 'dee@x.io' })).status, 409);
 
-  // Undo re-opens eligibility.
-  assert.equal((await call('DELETE', `/api/admin/games/${g1.id}/winner`, undefined, true)).status, 200);
+  // Returning the tickets re-opens eligibility and restores the winner's removed entries.
+  const undo = await call('DELETE', `/api/admin/games/${g1.id}/winner`, undefined, true);
+  assert.equal(undo.status, 200);
+  assert.equal(undo.body.restored, 1);
+  const g2After = (await call('GET', `/api/admin/games/${g2.id}/entries`, undefined, true)).body.entries;
+  assert.ok(g2After.some((e) => e.email === winner));
   assert.equal((await call('POST', `/api/games/${g3.id}/entries`, { name: 'Winner Person', email: winner })).status, 201);
 });
 
@@ -158,19 +162,15 @@ test('admin can add, edit, close and delete games', async () => {
 
 test('admin can update perks and settings, and reset the season', async () => {
   await login();
-  let r = await call('PUT', '/api/admin/settings', { perks: [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }, { title: '' }], draw_lead_days: 5, tickets_per_game: 4 }, true);
+  let r = await call('PUT', '/api/admin/settings', { perks: [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }, { title: '' }], tickets_per_game: 4 }, true);
   assert.equal(r.status, 200);
   const s = (await call('GET', '/api/schedule')).body.settings;
   assert.deepEqual(s.perks, [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }]);
-  assert.equal(s.draw_lead_days, 5);
   assert.equal(s.tickets_per_game, '4');
-  assert.equal((await call('PUT', '/api/admin/settings', { draw_lead_days: 99 }, true)).status, 400);
 
   const [g] = await futureGames();
   await call('POST', `/api/games/${g.id}/entries`, { name: 'Fay', email: 'fay@x.io' });
   assert.equal((await call('POST', '/api/admin/reset-season', { confirm: 'nope' }, true)).status, 400);
   assert.equal((await call('POST', '/api/admin/reset-season', { confirm: 'RESET' }, true)).status, 200);
   assert.equal((await db.query('SELECT COUNT(*)::int AS n FROM entries')).rows[0].n, 0);
-  // restore defaults for other tests
-  await call('PUT', '/api/admin/settings', { draw_lead_days: 3 }, true);
 });

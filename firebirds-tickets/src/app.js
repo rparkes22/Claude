@@ -2,7 +2,7 @@ import express from 'express';
 import { randomInt } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { addDays, gameHasStarted, isValidDate, isValidTime, nowInPacific } from './time.js';
+import { gameHasStarted, isValidDate, isValidTime, nowInPacific } from './time.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
@@ -47,7 +47,6 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
   async function settings(db) {
     const out = {};
     for (const row of await all(db, 'SELECT key, value FROM settings')) out[row.key] = row.value;
-    out.draw_lead_days = Math.max(0, parseInt(out.draw_lead_days, 10) || 0);
     try { out.perks = JSON.parse(out.perks || '[]'); } catch { out.perks = []; }
     return out;
   }
@@ -56,7 +55,10 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
   const cleanText = (s, max = MAX_TEXT) => String(s ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
   const idParam = (s) => { const n = Number(s); return Number.isInteger(n) && n > 0 ? n : -1; };
 
-  function describeGame(g, cfg) {
+  /** Drawings happen at the beginning of each month for that month's games. */
+  const expectedDrawDate = (g) => `${g.date.slice(0, 7)}-01`;
+
+  function describeGame(g) {
     const started = gameHasStarted(g, now());
     let status;
     if (g.winner_name) status = 'drawn';
@@ -66,14 +68,14 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     return {
       id: g.id, date: g.date, time: g.time, opponent: g.opponent, theme: g.theme,
       giveaway: g.giveaway, notes: g.notes, is_active: !!g.is_active,
-      entry_count: g.entry_count, status, expected_draw_date: addDays(g.date, -cfg.draw_lead_days),
+      entry_count: g.entry_count, status, expected_draw_date: expectedDrawDate(g),
       winner: g.winner_name ? { name: g.winner_name, drawn_at: g.drawn_at, pool_size: g.pool_size } : null,
     };
   }
 
   function publicSettings(cfg) {
-    const { season_label, intro_text, perks, draw_lead_days, tickets_per_game } = cfg;
-    return { season_label, intro_text, perks, draw_lead_days, tickets_per_game };
+    const { season_label, intro_text, perks, tickets_per_game } = cfg;
+    return { season_label, intro_text, perks, tickets_per_game };
   }
 
   // ---------- public API ----------
@@ -82,7 +84,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
   app.get('/api/schedule', h(async (_req, res) => {
     const db = await getDb();
     const cfg = await settings(db);
-    res.json({ settings: publicSettings(cfg), games: (await all(db, SQL.games)).map((g) => describeGame(g, cfg)), today: nowInPacific(now()).date });
+    res.json({ settings: publicSettings(cfg), games: (await all(db, SQL.games)).map(describeGame), today: nowInPacific(now()).date });
   }));
 
   app.get('/api/me', h(async (req, res) => {
@@ -147,7 +149,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
   admin.get('/overview', h(async (_req, res) => {
     const db = await getDb();
     const cfg = await settings(db);
-    const games = (await all(db, SQL.games)).map((g) => ({ ...describeGame(g, cfg), winner_email: g.winner_email }));
+    const games = (await all(db, SQL.games)).map((g) => ({ ...describeGame(g), winner_email: g.winner_email }));
     res.json({ settings: cfg, games, winners: await all(db, SQL.winners), today: nowInPacific(now()).date });
   }));
 
@@ -181,18 +183,35 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
 
     const pick = pool[randomInt(pool.length)];
     await db.tx(async (q) => {
-      await q('INSERT INTO winners (game_id, name, email, pool_size) VALUES ($1, $2, $3, $4)', [game.id, pick.name, pick.email, pool.length]);
-      // Winners are out of the running for every other game this season.
-      await q('DELETE FROM entries WHERE email = $1 AND game_id <> $2', [pick.email, game.id]);
+      // Winners are out of the running for every other game this season. Remember what was
+      // removed so the entries can be restored if the winner gives the tickets back.
+      const removed = (await q('DELETE FROM entries WHERE email = $1 AND game_id <> $2 RETURNING game_id, name', [pick.email, game.id])).rows;
+      await q('INSERT INTO winners (game_id, name, email, pool_size, removed_entries) VALUES ($1, $2, $3, $4, $5)',
+        [game.id, pick.name, pick.email, pool.length, JSON.stringify(removed)]);
     });
     res.json({ ok: true, winner: { name: pick.name, email: pick.email, pool_size: pool.length } });
   }));
 
+  // Winner returned the tickets: remove the win and put their other entries back into the
+  // pool for games that are still open. They can also enter new games again.
   admin.delete('/games/:id/winner', h(async (req, res) => {
     const db = await getDb();
-    const r = await db.query('DELETE FROM winners WHERE game_id = $1', [idParam(req.params.id)]);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'No winner recorded for this game' });
-    res.json({ ok: true });
+    const winner = await one(db, SQL.winnerForGame, [idParam(req.params.id)]);
+    if (!winner) return res.status(404).json({ error: 'No winner recorded for this game' });
+    let removed = [];
+    try { removed = JSON.parse(winner.removed_entries || '[]'); } catch { removed = []; }
+    let restored = 0;
+    await db.tx(async (q) => {
+      await q('DELETE FROM winners WHERE id = $1', [winner.id]);
+      for (const e of removed) {
+        const g = (await q(SQL.game, [e.game_id])).rows[0];
+        if (!g || !g.is_active || gameHasStarted(g, now())) continue;
+        if ((await q(SQL.winnerForGame, [g.id])).rows[0]) continue;
+        const r = await q('INSERT INTO entries (game_id, name, email) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [g.id, e.name, winner.email]);
+        restored += r.rowCount;
+      }
+    });
+    res.json({ ok: true, restored });
   }));
 
   // ---------- admin: games ----------
@@ -238,11 +257,6 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     if (b.season_label !== undefined) updates.season_label = cleanText(b.season_label, MAX_NAME);
     if (b.intro_text !== undefined) updates.intro_text = String(b.intro_text).trim().slice(0, 1000);
     if (b.tickets_per_game !== undefined) updates.tickets_per_game = String(Math.max(1, parseInt(b.tickets_per_game, 10) || 1));
-    if (b.draw_lead_days !== undefined) {
-      const n = parseInt(b.draw_lead_days, 10);
-      if (!Number.isFinite(n) || n < 0 || n > 60) return res.status(400).json({ error: 'Draw lead days must be between 0 and 60' });
-      updates.draw_lead_days = String(n);
-    }
     if (b.perks !== undefined) {
       if (!Array.isArray(b.perks) || b.perks.length > 20) return res.status(400).json({ error: 'Perks must be a list of up to 20 items' });
       const perks = b.perks.map((p) => ({ icon: cleanText(p?.icon, 8), title: cleanText(p?.title, MAX_NAME), detail: cleanText(p?.detail, 300) })).filter((p) => p.title);

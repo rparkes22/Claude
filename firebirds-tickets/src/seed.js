@@ -56,8 +56,7 @@ export const DEFAULT_PERKS = [
 
 export const DEFAULT_SETTINGS = {
   season_label: SEASON_LABEL,
-  draw_lead_days: '3',
   tickets_per_game: '4',
-  intro_text: 'Pick the home games you would like to attend. A few days before each game we randomly draw one name from everyone who entered. Win once and you are set for the season so everyone gets a turn.',
+  intro_text: 'Pick the home games you would like to attend. At the beginning of each month we randomly draw one name for each of that month\'s games from everyone who entered. Win once and you are set for the season so everyone gets a turn.',
   perks: JSON.stringify(DEFAULT_PERKS),
 };

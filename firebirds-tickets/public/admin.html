@@ -54,7 +54,7 @@
       <section id="tab-winners" hidden>
         <div class="panel">
           <strong>Season winners</strong>
-          <p class="muted" style="margin:4px 0 12px;">Winners are blocked from entering any other game this season. Undo a draw if someone can't attend, then draw again.</p>
+          <p class="muted" style="margin:4px 0 12px;">Winners are blocked from entering any other game this season. If someone returns their tickets, click "Return tickets": their win is removed, their other entries go back into the pool, and you can draw that game again.</p>
           <div class="tbl-wrap"><table>
             <thead><tr><th>Game</th><th>Winner</th><th>Email</th><th>Drawn</th><th>Pool</th><th></th></tr></thead>
             <tbody id="winners-body"></tbody>
@@ -74,8 +74,6 @@
           <div class="field" style="margin-top:10px;"><label for="s-season">Season label</label><input id="s-season"></div>
           <div class="field"><label for="s-intro">Intro text (top of staff page)</label><textarea id="s-intro" rows="3"></textarea></div>
           <div class="field"><label for="s-tickets">Tickets per game</label><input id="s-tickets" type="number" min="1" style="max-width:120px;"></div>
-          <div class="field"><label for="s-lead">Draw lead time (days before game)</label><input id="s-lead" type="number" min="0" max="60" style="max-width:120px;">
-            <div class="hint">Shown to staff as the expected draw date. Drawings are still run manually from the Games tab.</div></div>
           <div class="actions" style="justify-content:flex-start;"><button class="btn" id="save-settings-btn">Save perks & settings</button></div>
         </div>
         <div class="panel">

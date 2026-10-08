@@ -33,8 +33,10 @@ const SCHEMA = `
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     pool_size INTEGER NOT NULL,
+    removed_entries TEXT NOT NULL DEFAULT '[]',
     drawn_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+  ALTER TABLE winners ADD COLUMN IF NOT EXISTS removed_entries TEXT NOT NULL DEFAULT '[]';
   CREATE INDEX IF NOT EXISTS winners_email ON winners(email);
 
   CREATE TABLE IF NOT EXISTS settings (
