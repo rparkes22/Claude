@@ -78,6 +78,16 @@ module.exports = function check(dir) {
   if (!/function ApprovalChip/.test(main)) fail('app-main.jsx predates the WSL/EAR column');
   if (/util-sce">SCE · n\/a/.test(main)) fail('the tracker still labels missing WSLs as SCE');
   if (!/sentFor/.test(letters)) fail('app-letters.jsx predates per-recipient letter status');
+  // the letter wording is editable, and keeps its {tokens} so the fields still drive it
+  if (!/DEFAULT_LETTER/.test(letters)) fail('app-letters.jsx predates the editable letter text');
+  if (!/function fillTokens/.test(letters)) fail('the letter text is not token-substituted');
+  if (!/\{site\}/.test(letters)) fail('the default letter body lost its tokens');
+  if (!/LETTER_OV_KEY/.test(letters)) fail('letter edits are not persisted per project');
+  if (!/letter=\{letterFor\(r\)\}/.test(letters)) fail('printed letters do not use the edited wording');
+  if (!/letter=\{letterFor\(preview\)\}/.test(letters)) fail('the preview does not use the edited wording');
+  // a .field inside a .field makes "the Sign-off field" ambiguous to any selector
+  if (/className="field"[\s\S]{0,400}?className="field"[\s\S]{0,80}?Sign-off/.test(letters))
+    fail('the letter editor nests a .field inside a .field again');
   if (!/popstate/.test(main)) fail('app-main.jsx predates browser-Back navigation');
   // a status change must never restamp the day the submittal went out
   if (/patchTask\(pid, taskKey, \{ status, date:/.test(main))

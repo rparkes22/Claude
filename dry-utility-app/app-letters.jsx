@@ -93,16 +93,66 @@ function LetterheadDoc({ children, singlePage }) {
   );
 }
 
-function letterBody(f) {
-  return [
-    `We are in the process of working on a new project in ${f.siteDesc}. We need any information your agency may have regarding existing utilities within the area described. Please include maps or atlases and As-Built plans for both above and below ground facilities if applicable.`,
-    `We’ve included the Thomas Brother’s Map reference and Assessor’s Parcel Map location for your convenience.`,
-    `Please include the MSA number when responding to this request. If you have any questions, please feel free to contact ${f.contactName} at ${f.contactEmail}.`,
-    `I appreciate your help in this matter.`,
-  ];
+// ---- the letter's wording -------------------------------------------------------
+// The prose used to be hard-coded, so the only way to say anything different to one
+// agency was to print it and retype it in Word. It is editable now, at three scopes:
+// the MSA default, this project's wording, and one agency's letter. A letter resolves
+// the most specific of the three.
+//
+// The text keeps {tokens} rather than being flattened to plain prose, so the fields in
+// the side panel still drive it after an edit — change the site description and every
+// letter follows, edited or not.
+const DEFAULT_LETTER = {
+  subject: 'Utility Research Request',
+  salutation: 'To whom it may concern:',
+  body: [
+    'We are in the process of working on a new project in {site}. We need any information your agency may have regarding existing utilities within the area described. Please include maps or atlases and As-Built plans for both above and below ground facilities if applicable.',
+    'We’ve included the Thomas Brother’s Map reference and Assessor’s Parcel Map location for your convenience.',
+    'Please include the MSA number when responding to this request. If you have any questions, please feel free to contact {contact} at {contactEmail}.',
+    'I appreciate your help in this matter.',
+  ].join('\n\n'),
+  signoff: 'Thank you,',
+};
+const LETTER_PARTS = ['subject', 'salutation', 'body', 'signoff'];
+// shown under the editor so the tokens are discoverable rather than folklore
+const LETTER_TOKENS = [
+  ['{site}', 'site description'], ['{contact}', 'contact name'], ['{contactEmail}', 'contact email'],
+  ['{jobNo}', 'MSA job #'], ['{apn}', 'APN'], ['{mapRef}', 'map reference'],
+  ['{agency}', 'the recipient agency'], ['{date}', 'letter date'],
+];
+
+// House default — what a new project starts from.
+const LETTER_TPL_KEY = 'msa_app_letter_template_v1';
+function loadLetterTemplate() {
+  try { return { ...DEFAULT_LETTER, ...(JSON.parse(localStorage.getItem(LETTER_TPL_KEY)) || {}) }; }
+  catch (e) { return { ...DEFAULT_LETTER }; }
+}
+function persistLetterTemplate(t) { try { localStorage.setItem(LETTER_TPL_KEY, JSON.stringify(t)); } catch (e) {} }
+
+// Per-project wording, and per-recipient within it. Keyed { projectId: { _all | recipientId: part } }
+// so reopening the generator finds the edits where you left them.
+const LETTER_OV_KEY = 'msa_app_letter_overrides_v1';
+function loadLetterOverrides() { try { return JSON.parse(localStorage.getItem(LETTER_OV_KEY)) || {}; } catch (e) { return {}; } }
+function persistLetterOverrides(m) { try { localStorage.setItem(LETTER_OV_KEY, JSON.stringify(m)); } catch (e) {} }
+
+function fillTokens(s, f, r) {
+  return String(s == null ? '' : s)
+    .replace(/\{site\}/g, f.siteDesc || '')
+    .replace(/\{contact\}/g, f.contactName || '')
+    .replace(/\{contactEmail\}/g, f.contactEmail || '')
+    .replace(/\{jobNo\}/g, f.jobNo || '')
+    .replace(/\{apn\}/g, f.apn || '')
+    .replace(/\{mapRef\}/g, f.mapRef || '')
+    .replace(/\{agency\}/g, (r && (r.attn || r.label)) || '')
+    .replace(/\{date\}/g, f.date ? fmt(f.date) : '');
+}
+// A blank line starts a new paragraph, which is how the textarea reads on screen.
+function bodyParagraphs(text, f, r) {
+  return fillTokens(text, f, r).split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
 }
 
-function LetterSheet({ r, f }) {
+function LetterSheet({ r, f, letter }) {
+  const L = { ...DEFAULT_LETTER, ...(letter || {}) };
   return (
     <div className="letter-sheet">
       <LetterheadDoc singlePage>
@@ -114,15 +164,15 @@ function LetterSheet({ r, f }) {
         {r.addr.map((l, i) => <div key={i}>{l}</div>)}
       </div>
       <div className="letter-subj">
-        <div><b>Subject: Utility Research Request</b></div>
+        <div><b>Subject: {fillTokens(L.subject, f, r)}</b></div>
         <div>MSA Job #: {f.jobNo}</div>
         <div>Map reference: {f.mapRef}</div>
         <div>APN: {f.apn}</div>
       </div>
       <div className="letter-body">
-        <p>To whom it may concern:</p>
-        {letterBody(f).map((p, i) => <p key={i}>{p}</p>)}
-        <p>Thank you,</p>
+        <p>{fillTokens(L.salutation, f, r)}</p>
+        {bodyParagraphs(L.body, f, r).map((p, i) => <p key={i}>{p}</p>)}
+        <p>{fillTokens(L.signoff, f, r)}</p>
         <div className="letter-sig">
           <div className="letter-sig-name">{f.signerName}</div>
           <div>{f.signerTitle}</div>
@@ -182,6 +232,11 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
   const [selected, setSelected] = React.useState(() => new Set(pending.map(r => r.id)));
   const [fields, setFields] = React.useState(null);
   const [previewId, setPreviewId] = React.useState(null);
+  // wording: the house default, plus this project's overrides (whole-project and per-agency)
+  const [tpl, setTpl] = React.useState(loadLetterTemplate);
+  const [ovs, setOvs] = React.useState(() => loadLetterOverrides()[p.id] || {});
+  const [scope, setScope] = React.useState('_all');   // '_all' or a recipient id
+  const [editing, setEditing] = React.useState(false);
   React.useEffect(() => {
     if (!open) return;
     // default to what still needs sending; everything already logged stays unticked
@@ -199,9 +254,47 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
       signerName: currentUser ? currentUser.name : '',
       signerTitle: (currentUser && currentUser.title) || 'Project Administrator',
     });
+    setTpl(loadLetterTemplate());
+    setOvs(loadLetterOverrides()[p.id] || {});
+    setScope('_all');
+    setEditing(false);
   }, [open, p.id]);
   if (!open || !fields) return null;
   const set = (k) => (e) => setFields(prev => ({ ...prev, [k]: e.target.value }));
+
+  // Most specific wins: this agency's letter, then the project's, then the MSA default.
+  const letterFor = (r) => ({ ...tpl, ...(ovs._all || {}), ...((r && ovs[r.id]) || {}) });
+  // What the editor is currently pointed at, and what it would show if nothing is set there.
+  const scopeBase = scope === '_all' ? tpl : { ...tpl, ...(ovs._all || {}) };
+  const scopeOv = ovs[scope] || {};
+  const scopeText = { ...scopeBase, ...scopeOv };
+  const scopeCustom = LETTER_PARTS.some(k => scopeOv[k] != null);
+  const scopeLabel = scope === '_all' ? 'every letter on this project' : ((BOOK.find(r => r.id === scope) || {}).label || 'this agency');
+  // the agencies worth offering a per-letter edit for: this project's, plus anything ticked
+  const scopeTargets = BOOK.filter(r => relevant.some(x => x.id === r.id) || selected.has(r.id));
+  const saveOvs = (next) => {
+    setOvs(next);
+    const all = loadLetterOverrides();
+    if (Object.keys(next).length) all[p.id] = next; else delete all[p.id];
+    persistLetterOverrides(all);
+  };
+  const editPart = (k) => (e) => {
+    const v = e.target.value;
+    const next = { ...ovs, [scope]: { ...(ovs[scope] || {}), [k]: v } };
+    // typing the inherited text back verbatim is not an override
+    if (v === scopeBase[k]) { const s = { ...next[scope] }; delete s[k]; Object.keys(s).length ? (next[scope] = s) : delete next[scope]; }
+    saveOvs(next);
+  };
+  const resetScope = () => { const next = { ...ovs }; delete next[scope]; saveOvs(next); };
+  const saveAsDefault = () => {
+    const t = { ...tpl, ...LETTER_PARTS.reduce((m, k) => (scopeText[k] != null ? { ...m, [k]: scopeText[k] } : m), {}) };
+    setTpl(t); persistLetterTemplate(t);
+    showToast && showToast('Saved as the MSA default — new projects start from this wording');
+  };
+  const restoreMsaDefault = () => {
+    setTpl({ ...DEFAULT_LETTER }); persistLetterTemplate({ ...DEFAULT_LETTER });
+    showToast && showToast('MSA default wording restored');
+  };
   const toggle = (id) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const chosen = BOOK.filter(r => selected.has(r.id));
   const preview = BOOK.find(r => r.id === previewId) || chosen[0];
@@ -227,7 +320,7 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     const root = ReactDOM.createRoot(holder);
     // Each sheet is its own letterhead table, so every letter prints on its own page
     // with the header at the top and the contact line at the foot.
-    root.render(<div>{chosen.map(r => <LetterSheet key={r.id} r={r} f={fields} />)}</div>);
+    root.render(<div>{chosen.map(r => <LetterSheet key={r.id} r={r} f={fields} letter={letterFor(r)} />)}</div>);
     setTimeout(() => {
       window.print();
       setTimeout(() => { root.unmount(); holder.remove(); pageStyle.remove(); }, 400);
@@ -239,7 +332,8 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
     return (
       <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 12.5, opacity: dim && !selected.has(r.id) ? 0.65 : 1 }}>
         <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} style={{ accentColor: 'var(--primary)' }} />
-        <span style={{ fontWeight: 600, flex: 1 }}>{r.label}{r.method === 'portal' && <span className="badge b-blue" style={{ marginLeft: 7, fontSize: 9.5 }}>portal</span>}</span>
+        <span style={{ fontWeight: 600, flex: 1 }}>{r.label}{r.method === 'portal' && <span className="badge b-blue" style={{ marginLeft: 7, fontSize: 9.5 }}>portal</span>}
+          {ovs[r.id] && <span className="badge b-violet" style={{ marginLeft: 7, fontSize: 9.5 }} title="This agency's letter has its own wording">edited</span>}</span>
         {/* what is already on the log, so reissuing is a deliberate choice */}
         {already
           ? <span className="badge b-ok" style={{ fontSize: 9.5 }} title={`A letter is already logged for this agency, sent ${fmtShort(already)}`}><span className="badge-dot"></span>sent {fmtShort(already)}</span>
@@ -270,6 +364,69 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
               <div className="field"><label>Signed by</label><input className="input" style={{ height: 30, fontSize: 12 }} value={fields.signerName} onChange={set('signerName')} /></div>
               <div className="field"><label>Signer title</label><input className="input" style={{ height: 30, fontSize: 12 }} value={fields.signerTitle} onChange={set('signerTitle')} /></div>
             </div>
+            {/* The wording itself. Collapsed by default — most runs only need the fields
+                above — but one click from changing a sentence for a single agency. */}
+            <div className="field" style={{ marginBottom: editing ? 6 : undefined }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0 }}>
+                <span style={{ flex: 1 }}>Letter text</span>
+                {(ovs._all || Object.keys(ovs).some(k => k !== '_all')) &&
+                  <span className="badge b-violet" style={{ fontSize: 9.5 }}><span className="badge-dot"></span>edited</span>}
+                <button type="button" className="btn btn-ghost btn-sm" style={{ height: 20, fontSize: 10.5, padding: '0 6px' }}
+                  onClick={() => setEditing(v => !v)}>{editing ? 'Done' : 'Edit'}</button>
+              </label>
+            </div>
+            {/* The editor sits outside the field above rather than inside it: nesting a
+                .field within a .field makes "the Sign-off field" ambiguous to any
+                selector, and the wrapper's own label would be matched as one of them. */}
+            <div className="letter-editor">
+              {editing && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--surface-2)', marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, marginBottom: 5 }}>Applies to</div>
+                  {/* picking one agency also previews it, so nobody edits blind */}
+                  <select className="select" style={{ height: 28, fontSize: 12, width: '100%', marginBottom: 8 }}
+                    value={scope} onChange={e => { setScope(e.target.value); if (e.target.value !== '_all') setPreviewId(e.target.value); }}>
+                    <option value="_all">Every letter on this project</option>
+                    {scopeTargets.map(r => <option key={r.id} value={r.id}>Just {r.label}{ovs[r.id] ? ' (edited)' : ''}</option>)}
+                  </select>
+                  <div className="field" style={{ marginBottom: 7 }}>
+                    <label style={{ fontSize: 10.5 }}>Subject</label>
+                    <input className="input" style={{ height: 28, fontSize: 12 }} value={scopeText.subject} onChange={editPart('subject')} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 7 }}>
+                    <label style={{ fontSize: 10.5 }}>Salutation</label>
+                    <input className="input" style={{ height: 28, fontSize: 12 }} value={scopeText.salutation} onChange={editPart('salutation')} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 7 }}>
+                    <label style={{ fontSize: 10.5 }}>Body — blank line starts a new paragraph</label>
+                    <textarea className="input" style={{ height: 190, fontSize: 11.5, padding: 8, resize: 'vertical', lineHeight: 1.5 }}
+                      value={scopeText.body} onChange={editPart('body')} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 7 }}>
+                    <label style={{ fontSize: 10.5 }}>Sign-off</label>
+                    <input className="input" style={{ height: 28, fontSize: 12 }} value={scopeText.signoff} onChange={editPart('signoff')} />
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--ink-4)', lineHeight: 1.6, marginBottom: 8 }}>
+                    These fill themselves in — leave them in place and the fields above keep driving the letter:{' '}
+                    {LETTER_TOKENS.map(([t, d], i) => (
+                      <React.Fragment key={t}>{i > 0 && ' · '}<code className="mono" title={d} style={{ color: 'var(--ink-2)' }}>{t}</code></React.Fragment>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-sm" disabled={!scopeCustom} onClick={resetScope}
+                      title={scope === '_all' ? 'Go back to the MSA default wording' : "Go back to this project's wording"}>
+                      Reset {scope === '_all' ? 'project' : 'this one'}
+                    </button>
+                    <button type="button" className="btn btn-sm" onClick={saveAsDefault}
+                      title="Make this the wording every new project starts from">Save as MSA default</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={restoreMsaDefault}
+                      title="Restore the original MSA wording as the house default">Restore original</button>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--ink-4)', marginTop: 7 }}>
+                    Editing <b style={{ color: 'var(--ink-3)' }}>{scopeLabel}</b>. Changes save as you type and show in the preview.
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="field" style={{ marginBottom: 0 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ flex: 1 }}>Recipients ({selected.size} selected)</span>
@@ -294,7 +451,7 @@ function LetterGenModal({ p, open, onClose, currentUser, showToast }) {
             </div>
           </div>
           <div style={{ background: 'var(--surface-2)', overflowY: 'auto', padding: 20, minWidth: 0 }}>
-            {preview ? <PreviewScaler><LetterSheet r={preview} f={fields} /></PreviewScaler> : <div style={{ fontSize: 12.5, color: 'var(--ink-4)', textAlign: 'center', paddingTop: 40 }}>Select a recipient to preview</div>}
+            {preview ? <PreviewScaler><LetterSheet r={preview} f={fields} letter={letterFor(preview)} /></PreviewScaler> : <div style={{ fontSize: 12.5, color: 'var(--ink-4)', textAlign: 'center', paddingTop: 40 }}>Select a recipient to preview</div>}
           </div>
         </div>
         <div className="modal-ft">
@@ -312,4 +469,5 @@ const RES_FU_KEY = 'msa_app_research_fu_v1';
 function loadResearchFu() { try { return JSON.parse(localStorage.getItem(RES_FU_KEY)) || {}; } catch (e) { return {}; } }
 function persistResearchFu(m) { try { localStorage.setItem(RES_FU_KEY, JSON.stringify(m)); } catch (e) {} window.dispatchEvent(new Event('msa-research-updated')); }
 
-Object.assign(window, { LetterGenModal, LETTER_RECIPIENTS, getLetterRecipients, updateRecipient, addRecipient, removeRecipient, resetRecipient, loadContactMods, loadAddedResearch, persistAddedResearch, loadResearchFu, persistResearchFu });
+Object.assign(window, { LetterGenModal, LETTER_RECIPIENTS, getLetterRecipients, updateRecipient, addRecipient, removeRecipient, resetRecipient, loadContactMods, loadAddedResearch, persistAddedResearch, loadResearchFu, persistResearchFu,
+  DEFAULT_LETTER, LETTER_TOKENS, loadLetterTemplate, persistLetterTemplate, loadLetterOverrides, persistLetterOverrides, fillTokens, bodyParagraphs });
