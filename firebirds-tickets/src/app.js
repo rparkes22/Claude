@@ -33,12 +33,12 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     games: `
       SELECT g.*,
         (SELECT COUNT(*)::int FROM entries e WHERE e.game_id = g.id) AS entry_count,
-        w.name AS winner_name, w.email AS winner_email, w.drawn_at, w.pool_size
+        w.name AS winner_name, w.email AS winner_email, w.drawn_at, w.pool_size, w.method AS winner_method
       FROM games g LEFT JOIN winners w ON w.game_id = g.id
       ORDER BY g.date, g.time`,
     game: 'SELECT * FROM games WHERE id = $1',
     winnerForGame: 'SELECT * FROM winners WHERE game_id = $1',
-    winnerByEmail: 'SELECT * FROM winners WHERE email = $1',
+    winnerByEmail: "SELECT * FROM winners WHERE email = $1 AND email <> ''",
     entry: 'SELECT * FROM entries WHERE game_id = $1 AND email = $2',
     entriesForGame: 'SELECT id, name, email, created_at FROM entries WHERE game_id = $1 ORDER BY created_at, id',
     winners: 'SELECT w.*, g.date, g.time, g.opponent FROM winners w JOIN games g ON g.id = w.game_id ORDER BY g.date',
@@ -61,7 +61,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
   function describeGame(g) {
     const started = gameHasStarted(g, now());
     let status;
-    if (g.winner_name) status = 'drawn';
+    if (g.winner_name) status = g.winner_method === 'assigned' ? 'taken' : 'drawn';
     else if (started) status = 'past';
     else if (!g.is_active) status = 'closed';
     else status = 'open';
@@ -69,7 +69,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
       id: g.id, date: g.date, time: g.time, opponent: g.opponent, theme: g.theme,
       giveaway: g.giveaway, notes: g.notes, is_active: !!g.is_active,
       entry_count: g.entry_count, status, expected_draw_date: expectedDrawDate(g),
-      winner: g.winner_name ? { name: g.winner_name, drawn_at: g.drawn_at, pool_size: g.pool_size } : null,
+      winner: g.winner_name ? { name: g.winner_name, drawn_at: g.drawn_at, pool_size: g.pool_size, method: g.winner_method || 'draw' } : null,
     };
   }
 
@@ -110,7 +110,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     if (name.length < 2) return res.status(400).json({ error: 'Enter your name' });
     if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid work email address' });
     if (!game.is_active) return res.status(409).json({ error: 'Entries for this game are closed' });
-    if (await one(db, SQL.winnerForGame, [game.id])) return res.status(409).json({ error: 'A winner has already been drawn for this game' });
+    if (await one(db, SQL.winnerForGame, [game.id])) return res.status(409).json({ error: 'The tickets for this game are already taken' });
     if (gameHasStarted(game, now())) return res.status(409).json({ error: 'This game has already been played' });
     const prior = await one(db, SQL.winnerByEmail, [email]);
     if (prior) {
@@ -182,15 +182,42 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     if (pool.length === 0) return res.status(409).json({ error: 'No eligible entries for this game' });
 
     const pick = pool[randomInt(pool.length)];
-    await db.tx(async (q) => {
-      // Winners are out of the running for every other game this season. Remember what was
-      // removed so the entries can be restored if the winner gives the tickets back.
-      const removed = (await q('DELETE FROM entries WHERE email = $1 AND game_id <> $2 RETURNING game_id, name', [pick.email, game.id])).rows;
-      await q('INSERT INTO winners (game_id, name, email, pool_size, removed_entries) VALUES ($1, $2, $3, $4, $5)',
-        [game.id, pick.name, pick.email, pool.length, JSON.stringify(removed)]);
-    });
+    await recordWinner(db, game, { name: pick.name, email: pick.email, pool_size: pool.length, method: 'draw' });
     res.json({ ok: true, winner: { name: pick.name, email: pick.email, pool_size: pool.length } });
   }));
+
+  // Hand the tickets to a specific person without a drawing (e.g. on request).
+  admin.post('/games/:id/assign', h(async (req, res) => {
+    const db = await getDb();
+    const game = await one(db, SQL.game, [idParam(req.params.id)]);
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (await one(db, SQL.winnerForGame, [game.id])) return res.status(409).json({ error: 'The tickets for this game are already taken' });
+    const name = cleanText(req.body?.name, MAX_NAME);
+    const email = normalizeEmail(req.body?.email);
+    if (name.length < 2) return res.status(400).json({ error: 'Enter the name of the person taking the tickets' });
+    if (email && !EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address, or leave it blank' });
+    if (email && !req.body?.force) {
+      const prior = await one(db, SQL.winnerByEmail, [email]);
+      if (prior) {
+        const g = await one(db, SQL.game, [prior.game_id]);
+        return res.status(409).json({ error: `${name} already has tickets for ${g?.opponent ?? 'another game'} on ${g?.date ?? ''}. Send force=true to give them a second game anyway.`, already_has: true });
+      }
+    }
+    await recordWinner(db, game, { name, email, pool_size: 0, method: 'assigned' });
+    res.json({ ok: true, winner: { name, email, method: 'assigned' } });
+  }));
+
+  /** Record who has a game's tickets. Their entries for other games are removed (and remembered
+   *  so they can be restored if the tickets come back), since it's one game per person per season. */
+  async function recordWinner(db, game, { name, email, pool_size, method }) {
+    await db.tx(async (q) => {
+      const removed = email
+        ? (await q('DELETE FROM entries WHERE email = $1 AND game_id <> $2 RETURNING game_id, name', [email, game.id])).rows
+        : [];
+      await q('INSERT INTO winners (game_id, name, email, pool_size, removed_entries, method) VALUES ($1, $2, $3, $4, $5, $6)',
+        [game.id, name, email || '', pool_size, JSON.stringify(removed), method]);
+    });
+  }
 
   // Winner returned the tickets: remove the win and put their other entries back into the
   // pool for games that are still open. They can also enter new games again.

@@ -66,6 +66,12 @@ main.wrap { padding-top: 28px; padding-bottom: 60px; }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 0.88rem; color: var(--muted); }
 .chip.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.banner { background: #fff8e8; border: 1px solid #ffe2a8; color: #6b4a00; border-radius: 12px; padding: 10px 14px; font-size: 0.9rem; line-height: 1.5; margin-bottom: 6px; }
+.banner:empty { display: none; }
+.banner strong { color: #4a3300; }
+button.link { background: none; border: 0; padding: 0; color: var(--red); font-weight: 600; text-decoration: underline; }
+.game.taken { border-left: 4px solid var(--navy); }
+.badge.winner.taken { background: #eef2f8; color: var(--navy); border-color: #cfd9e8; }
 .month { margin: 18px 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
 
 .game { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px;

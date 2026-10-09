@@ -58,18 +58,21 @@
 
   function renderStats() {
     const open = state.games.filter((g) => g.status === 'open');
+    const thisMonth = open.filter((g) => g.date.slice(0, 7) === state.today.slice(0, 7));
     const entries = state.games.reduce((n, g) => n + g.entry_count, 0);
     const next = open.find((g) => g.expected_draw_date <= state.today) || open[0];
     $('#stats').replaceChildren(
+      el('div', { class: 'stat' }, el('b', {}, String(thisMonth.length)), el('span', {}, 'available this month')),
       el('div', { class: 'stat' }, el('b', {}, String(open.length)), el('span', {}, 'games open')),
       el('div', { class: 'stat' }, el('b', {}, String(entries)), el('span', {}, 'active entries')),
-      el('div', { class: 'stat' }, el('b', {}, String(state.winners.length)), el('span', {}, 'winners so far')),
+      el('div', { class: 'stat' }, el('b', {}, String(state.winners.length)), el('span', {}, 'games taken')),
       el('div', { class: 'stat' }, el('b', {}, next ? `${MON[Number(next.date.slice(5, 7)) - 1]} ${Number(next.date.slice(8))}` : '—'), el('span', {}, next ? `next draw: ${next.opponent}` : 'no draws pending')),
     );
   }
 
   function statusLabel(g) {
     if (g.status === 'drawn') return `🏆 ${g.winner.name}`;
+    if (g.status === 'taken') return `🎟️ Taken by ${g.winner.name}`;
     if (g.status === 'past') return 'Played';
     if (g.status === 'closed') return 'Closed';
     return g.expected_draw_date <= state.today ? '⏰ Ready to draw' : `Open · draw early ${MON[Number(g.date.slice(5, 7)) - 1]}`;
@@ -78,14 +81,15 @@
   function renderGames() {
     const body = $('#games-body'); body.replaceChildren();
     for (const g of state.games) {
-      const tr = el('tr', { class: g.status === 'drawn' ? 'drawn' : (!g.is_active ? 'inactive' : '') },
+      const tr = el('tr', { class: (g.status === 'drawn' || g.status === 'taken') ? 'drawn' : (!g.is_active ? 'inactive' : '') },
         el('td', {}, `${fmtDate(g.date)} ${fmtTime(g.time)}`),
         el('td', {}, g.opponent),
         el('td', {}, [g.theme, g.giveaway ? `🎁 ${g.giveaway}` : ''].filter(Boolean).join(' · ') || '—'),
         el('td', {}, String(g.entry_count)),
         el('td', {}, statusLabel(g)),
         el('td', {}, el('div', { class: 'row-actions' },
-          el('button', { class: 'btn small ' + (g.status === 'open' && g.expected_draw_date <= state.today ? '' : 'ghost'), onclick: () => openEntries(g) }, g.status === 'drawn' ? 'Entries' : 'Entries / draw'),
+          el('button', { class: 'btn small ' + (g.status === 'open' && g.expected_draw_date <= state.today ? '' : 'ghost'), onclick: () => openEntries(g) }, g.winner ? 'Entries' : 'Entries / draw'),
+          !g.winner && g.status !== 'past' ? el('button', { class: 'btn ghost small', onclick: () => openAssign(g) }, 'Give to…') : null,
           el('button', { class: 'btn ghost small', onclick: () => openGameForm(g) }, 'Edit'),
           el('button', { class: 'btn ghost small', onclick: () => deleteGame(g) }, '🗑'))),
       );
@@ -98,8 +102,8 @@
     if (!state.winners.length) body.append(el('tr', {}, el('td', { colspan: 6, class: 'muted' }, 'No winners yet.')));
     for (const w of state.winners) {
       body.append(el('tr', {},
-        el('td', {}, `${fmtDate(w.date)} vs. ${w.opponent}`), el('td', {}, w.name), el('td', {}, w.email),
-        el('td', {}, fmtStamp(w.drawn_at)), el('td', {}, `${w.pool_size} entered`),
+        el('td', {}, `${fmtDate(w.date)} vs. ${w.opponent}`), el('td', {}, w.name), el('td', {}, w.email || '—'),
+        el('td', {}, w.method === 'assigned' ? 'Handed out' : `Drawn from ${w.pool_size}`), el('td', {}, fmtStamp(w.drawn_at)),
         el('td', {}, el('button', { class: 'btn ghost small', onclick: () => undoWinner(w) }, 'Return tickets'))));
     }
   }
@@ -146,6 +150,31 @@
     try { const r = await api(`/api/admin/games/${w.game_id}/winner`, { method: 'DELETE' }); toast(`Draw undone. ${r.restored} other entr${r.restored === 1 ? 'y' : 'ies'} restored.`); await refresh(); }
     catch (err) { toast(err.message, true); }
   }
+
+  // ---------- hand out tickets ----------
+  let assigning = null;
+  function openAssign(g) {
+    assigning = g;
+    $('#assign-sub').textContent = `vs. ${g.opponent} — ${fmtDate(g.date)}${g.entry_count ? ` · ${g.entry_count} entered (they stay entered but the game closes)` : ''}`;
+    $('#a-name').value = ''; $('#a-email').value = '';
+    $('#assign-dialog').showModal(); $('#a-name').focus();
+  }
+  $('#assign-cancel').addEventListener('click', () => $('#assign-dialog').close());
+  $('#assign-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = { name: $('#a-name').value, email: $('#a-email').value };
+    try {
+      let r = await fetch(`/api/admin/games/${assigning.id}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let j = await r.json().catch(() => ({}));
+      if (r.status === 409 && j.already_has) {
+        if (!confirm(`${j.error.replace(' Send force=true to give them a second game anyway.', '')} Give them this game too?`)) return;
+        r = await fetch(`/api/admin/games/${assigning.id}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, force: true }) });
+        j = await r.json().catch(() => ({}));
+      }
+      if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+      $('#assign-dialog').close(); toast(`Marked as taken by ${j.winner.name}`); await refresh();
+    } catch (err) { toast(err.message, true); }
+  });
 
   // ---------- game form ----------
   let editing = null;

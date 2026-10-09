@@ -54,9 +54,9 @@
       <section id="tab-winners" hidden>
         <div class="panel">
           <strong>Season winners</strong>
-          <p class="muted" style="margin:4px 0 12px;">Winners are blocked from entering any other game this season. If someone returns their tickets, click "Return tickets": their win is removed, their other entries go back into the pool, and you can draw that game again.</p>
+          <p class="muted" style="margin:4px 0 12px;">Everyone who has tickets this season, whether drawn or handed out on request. They are blocked from entering any other game. If someone returns their tickets, click "Return tickets": their other entries go back into the pool and the game opens up again.</p>
           <div class="tbl-wrap"><table>
-            <thead><tr><th>Game</th><th>Winner</th><th>Email</th><th>Drawn</th><th>Pool</th><th></th></tr></thead>
+            <thead><tr><th>Game</th><th>Who</th><th>Email</th><th>How</th><th>When</th><th></th></tr></thead>
             <tbody id="winners-body"></tbody>
           </table></div>
         </div>
@@ -97,6 +97,20 @@
       <div class="actions">
         <button class="btn ghost" type="button" id="entries-close">Close</button>
         <button class="btn" type="button" id="draw-btn">🎲 Draw winner</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="assign-dialog">
+    <form id="assign-form">
+      <h3 id="assign-title">Give tickets to…</h3>
+      <p class="sub" id="assign-sub"></p>
+      <div class="field"><label for="a-name">Name</label><input id="a-name" required minlength="2" maxlength="80"></div>
+      <div class="field"><label for="a-email">Work email (optional)</label><input id="a-email" type="email">
+        <div class="hint">With an email, they're blocked from other drawings this season and their other entries are removed, same as a winner.</div></div>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="assign-cancel">Cancel</button>
+        <button class="btn" type="submit">Mark as taken</button>
       </div>
     </form>
   </dialog>

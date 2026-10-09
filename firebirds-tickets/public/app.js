@@ -97,10 +97,14 @@
     const mine = new Set(state.me?.entered_game_ids || []);
     let games = state.games;
     if (state.filter === 'upcoming') games = games.filter((g) => g.status !== 'past');
+    if (state.filter === 'month') games = games.filter((g) => g.status === 'open' && g.date.slice(0, 7) === state.today.slice(0, 7));
     if (state.filter === 'mine') games = games.filter((g) => mine.has(g.id) || (state.me?.won && state.me.won.game_id === g.id));
     $('#count-text').textContent = `${games.length} game${games.length === 1 ? '' : 's'}`;
+    renderMonthBanner();
     if (!games.length) {
-      box.append(el('div', { class: 'empty' }, state.filter === 'mine' ? (state.me ? 'No entries yet. Pick a game!' : 'Enter your email above to see your entries.') : 'No games to show.'));
+      const msg = state.filter === 'mine' ? (state.me ? 'No entries yet. Pick a game!' : 'Enter your email above to see your entries.')
+        : state.filter === 'month' ? `No games left this month. Check back next month or enter upcoming games.` : 'No games to show.';
+      box.append(el('div', { class: 'empty' }, msg));
       return;
     }
     let lastMonth = '';
@@ -112,6 +116,19 @@
     }
   }
 
+  function renderMonthBanner() {
+    const box = $('#month-banner');
+    const month = state.today.slice(0, 7);
+    const avail = state.games.filter((g) => g.status === 'open' && g.date.slice(0, 7) === month);
+    const label = MONTHS_LONG[Number(month.slice(5)) - 1];
+    box.replaceChildren();
+    if (!avail.length) return;
+    box.append(
+      el('strong', {}, `${avail.length} game${avail.length === 1 ? '' : 's'} still available in ${label}: `),
+      ...avail.map((g, i) => el('span', {}, `${fmtDate(g.date)} vs. ${g.opponent}${i < avail.length - 1 ? ' · ' : ''}`)),
+      ' ', el('button', { class: 'link', onclick: () => $('.chip[data-filter=month]').click() }, 'Show them'));
+  }
+
   function renderGame(g, entered) {
     const p = parts(g.date);
     const cls = ['game', g.status, entered ? 'mine' : ''].join(' ').trim();
@@ -119,12 +136,13 @@
     if (g.theme) badges.push(el('span', { class: 'badge' }, g.theme));
     if (g.giveaway) badges.push(el('span', { class: 'badge gift' }, `🎁 ${g.giveaway}`));
     if (g.notes) badges.push(el('span', { class: 'badge note', title: g.notes }, 'ℹ️ ' + g.notes));
-    if (g.winner) badges.push(el('span', { class: 'badge winner' }, `🏆 ${g.winner.name}`));
+    if (g.winner) badges.push(el('span', { class: 'badge winner' }, g.status === 'taken' ? `🎟️ Taken by ${g.winner.name}` : `🏆 ${g.winner.name}`));
 
     const action = el('div', { class: 'action' });
     const iWon = state.me?.won;
-    if (g.status === 'drawn') {
-      action.append(el('span', { class: 'status-text win' }, g.winner.name === state.me?.won?.name && iWon?.game_id === g.id ? 'You won this one!' : 'Winner drawn'));
+    if (g.status === 'drawn' || g.status === 'taken') {
+      const mine = iWon?.game_id === g.id;
+      action.append(el('span', { class: 'status-text win' }, mine ? 'These are yours!' : g.status === 'taken' ? 'Taken' : 'Winner drawn'));
     } else if (g.status === 'past') {
       action.append(el('span', { class: 'status-text' }, 'Played'));
     } else if (g.status === 'closed') {

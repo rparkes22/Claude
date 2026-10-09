@@ -137,6 +137,39 @@ test('drawing picks an entrant, blocks them from future games, and removes their
   assert.equal((await call('POST', `/api/games/${g3.id}/entries`, { name: 'Winner Person', email: winner })).status, 201);
 });
 
+test('admin can hand out tickets to a named person', async () => {
+  await login();
+  const [g1, g2, g3] = await futureGames();
+  await call('POST', `/api/games/${g2.id}/entries`, { name: 'Pat Lee', email: 'pat@x.io' });
+  await call('POST', `/api/games/${g1.id}/entries`, { name: 'Other', email: 'other@x.io' });
+
+  assert.equal((await call('POST', `/api/admin/games/${g1.id}/assign`, { name: 'P' }, true)).status, 400);
+  let r = await call('POST', `/api/admin/games/${g1.id}/assign`, { name: 'Pat Lee', email: 'pat@x.io' }, true);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.winner.method, 'assigned');
+
+  // Game is taken, shown by name, no further entries or draws, Pat's other entry removed.
+  const sched = await call('GET', '/api/schedule');
+  const shown = sched.body.games.find((g) => g.id === g1.id);
+  assert.equal(shown.status, 'taken');
+  assert.equal(shown.winner.name, 'Pat Lee');
+  assert.equal(shown.winner.method, 'assigned');
+  assert.equal((await call('POST', `/api/games/${g1.id}/entries`, { name: 'Late', email: 'late@x.io' })).status, 409);
+  assert.equal((await call('POST', `/api/admin/games/${g1.id}/draw`, undefined, true)).status, 409);
+  assert.deepEqual((await call('GET', '/api/me?email=pat@x.io')).body.entered_game_ids, []); // never entered g1; g2 entry removed
+  assert.equal((await call('POST', `/api/games/${g3.id}/entries`, { name: 'Pat Lee', email: 'pat@x.io' })).status, 409);
+
+  // Giving Pat a second game needs force; without an email there is no blocking.
+  assert.equal((await call('POST', `/api/admin/games/${g3.id}/assign`, { name: 'Pat Lee', email: 'pat@x.io' }, true)).status, 409);
+  assert.equal((await call('POST', `/api/admin/games/${g3.id}/assign`, { name: 'Walk-in Guest' }, true)).status, 200);
+
+  // Returning Pat's tickets restores the g2 entry.
+  r = await call('DELETE', `/api/admin/games/${g1.id}/winner`, undefined, true);
+  assert.equal(r.body.restored, 1);
+  assert.deepEqual((await call('GET', '/api/me?email=pat@x.io')).body.entered_game_ids.sort(), [g2.id]);
+  assert.equal((await call('GET', '/api/schedule')).body.games.find((g) => g.id === g1.id).status, 'open');
+});
+
 test('draw excludes entrants who won another game after entering', async () => {
   await login();
   const [g1, g2] = await futureGames();
