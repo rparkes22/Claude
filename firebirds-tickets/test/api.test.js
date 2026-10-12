@@ -195,7 +195,8 @@ test('admin can add, edit, close and delete games', async () => {
 
 test('admin can update perks and settings, and reset the season', async () => {
   await login();
-  let r = await call('PUT', '/api/admin/settings', { perks: [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }, { title: '' }], tickets_per_game: 4 }, true);
+  let r = await call('PUT', '/api/admin/settings', { perks: [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }, { title: '' }], tickets_per_game: 4, sender_name: 'Ryan P' }, true);
+  assert.equal(r.body.settings.sender_name, 'Ryan P');
   assert.equal(r.status, 200);
   const s = (await call('GET', '/api/schedule')).body.settings;
   assert.deepEqual(s.perks, [{ icon: '🍕', title: 'Pizza', detail: 'Free slices' }]);

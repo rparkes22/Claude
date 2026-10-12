@@ -282,6 +282,7 @@ export function createApp({ getDb, auth, now = () => new Date() }) {
     const b = req.body ?? {};
     const updates = {};
     if (b.season_label !== undefined) updates.season_label = cleanText(b.season_label, MAX_NAME);
+    if (b.sender_name !== undefined) updates.sender_name = cleanText(b.sender_name, MAX_NAME);
     if (b.intro_text !== undefined) updates.intro_text = String(b.intro_text).trim().slice(0, 1000);
     if (b.tickets_per_game !== undefined) updates.tickets_per_game = String(Math.max(1, parseInt(b.tickets_per_game, 10) || 1));
     if (b.perks !== undefined) {

@@ -31,6 +31,40 @@
 
   const state = { games: [], winners: [], settings: {}, current: null };
 
+  // ---------- winner email (opens the admin's own mail client, pre-filled) ----------
+  function winnerMailto(g, w) {
+    const first = String(w.name || '').trim().split(/\s+/)[0] || 'there';
+    const sender = state.settings.sender_name || 'Ryan';
+    const perks = (state.settings.perks || []).map((p) => `- ${p.title}: ${p.detail}`).join('\n');
+    const opener = w.method === 'assigned'
+      ? 'As requested, the Firebirds tickets for the game below are yours.'
+      : 'Congratulations! Your name was drawn for the Firebirds game below.';
+    const details = [
+      `- Coachella Valley Firebirds vs. ${g.opponent}`,
+      `- ${fmtDate(g.date)} at ${fmtTime(g.time)}`,
+    ];
+    if (g.theme || g.giveaway) {
+      let line = g.theme ? `- ${g.theme}` : '-';
+      if (g.giveaway) line += `${g.theme ? '. ' : ' '}Giveaway: ${g.giveaway}. Giveaways are limited, so get there early if you want one.`;
+      details.push(line);
+    }
+    const body = [
+      `Hi ${first},`, '',
+      opener, '',
+      'GAME DETAILS', ...details, '',
+      "WHAT'S INCLUDED", perks, '',
+      "HOW YOU'LL GET THEM",
+      'The tickets and the parking pass will be transferred to your work email from a Firebirds / Acrisure Arena / Ticketmaster sender. They come as two separate transfers in the same app, one for the tickets and one for the parking pass, so please accept both promptly. If you don\'t have an account yet, create one with your work email so the transfers land in the right place.', '',
+      "IF YOU CAN'T ATTEND",
+      `Plans change. If you can no longer make it, please let me (${sender}) know as soon as you can so we can find someone else to use the tickets. You'll still be eligible for future games.`, '',
+      'Enjoy the game, and go Firebirds!', '',
+      sender,
+    ].join('\n');
+    const subject = `Your Firebirds tickets: ${g.opponent}, ${fmtDate(g.date)}`;
+    return `mailto:${encodeURIComponent(w.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+  const emailButton = (g, w, label = '✉️ Email') => el('a', { class: 'btn ghost small', href: winnerMailto(g, w), title: w.email ? `Opens an email to ${w.email}` : 'No email on file; opens a blank-recipient email' }, label);
+
   // ---------- auth ----------
   function showLogin() { $('#login-panel').hidden = false; $('#admin-panel').hidden = true; $('#logout-btn').hidden = true; }
   function showAdmin() { $('#login-panel').hidden = true; $('#admin-panel').hidden = false; $('#logout-btn').hidden = false; }
@@ -90,6 +124,7 @@
         el('td', {}, el('div', { class: 'row-actions' },
           el('button', { class: 'btn small ' + (g.status === 'open' && g.expected_draw_date <= state.today ? '' : 'ghost'), onclick: () => openEntries(g) }, g.winner ? 'Entries' : 'Entries / draw'),
           !g.winner && g.status !== 'past' ? el('button', { class: 'btn ghost small', onclick: () => openAssign(g) }, 'Give to…') : null,
+          g.winner ? emailButton(g, { name: g.winner.name, email: g.winner_email, method: g.winner.method }) : null,
           el('button', { class: 'btn ghost small', onclick: () => openGameForm(g) }, 'Edit'),
           el('button', { class: 'btn ghost small', onclick: () => deleteGame(g) }, '🗑'))),
       );
@@ -104,7 +139,7 @@
       body.append(el('tr', {},
         el('td', {}, `${fmtDate(w.date)} vs. ${w.opponent}`), el('td', {}, w.name), el('td', {}, w.email || '—'),
         el('td', {}, w.method === 'assigned' ? 'Handed out' : `Drawn from ${w.pool_size}`), el('td', {}, fmtStamp(w.drawn_at)),
-        el('td', {}, el('button', { class: 'btn ghost small', onclick: () => undoWinner(w) }, 'Return tickets'))));
+        el('td', {}, el('div', { class: 'row-actions' }, emailButton(w, w), el('button', { class: 'btn ghost small', onclick: () => undoWinner(w) }, 'Return tickets')))));
     }
   }
 
@@ -137,7 +172,8 @@
       const r = await api(`/api/admin/games/${g.id}/draw`, { method: 'POST' });
       const reveal = $('#winner-reveal');
       reveal.hidden = false;
-      reveal.replaceChildren(el('div', {}, '🎉 Winner!'), el('div', { class: 'name' }, r.winner.name), el('div', { class: 'muted' }, `${r.winner.email} · drawn from ${r.winner.pool_size} eligible entr${r.winner.pool_size === 1 ? 'y' : 'ies'}`));
+      reveal.replaceChildren(el('div', {}, '🎉 Winner!'), el('div', { class: 'name' }, r.winner.name), el('div', { class: 'muted' }, `${r.winner.email} · drawn from ${r.winner.pool_size} eligible entr${r.winner.pool_size === 1 ? 'y' : 'ies'}`),
+        el('div', { style: 'margin-top:12px' }, emailButton(g, { ...r.winner, method: 'draw' }, '✉️ Email the winner')));
       $('#draw-btn').hidden = true;
       $('#entries-sub').textContent = `Winner: ${r.winner.name}. Their entries for other games were removed.`;
       await refresh();
@@ -172,7 +208,7 @@
         j = await r.json().catch(() => ({}));
       }
       if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
-      $('#assign-dialog').close(); toast(`Marked as taken by ${j.winner.name}`); await refresh();
+      $('#assign-dialog').close(); toast(`Marked as taken by ${j.winner.name}. Use ✉️ Email on the row to send them the details.`); await refresh();
     } catch (err) { toast(err.message, true); }
   });
 
@@ -216,7 +252,7 @@
     const s = state.settings;
     $('#perk-rows').replaceChildren(...(s.perks || []).map(perkRow));
     $('#s-season').value = s.season_label || ''; $('#s-intro').value = s.intro_text || '';
-    $('#s-tickets').value = s.tickets_per_game || 2;
+    $('#s-tickets').value = s.tickets_per_game || 2; $('#s-sender').value = s.sender_name || 'Ryan';
   }
   $('#add-perk-btn').addEventListener('click', () => $('#perk-rows').append(perkRow()));
   $('#save-settings-btn').addEventListener('click', async () => {
@@ -224,7 +260,7 @@
       icon: r.querySelector('[data-k=icon]').value, title: r.querySelector('[data-k=title]').value, detail: r.querySelector('[data-k=detail]').value,
     }));
     try {
-      await api('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ perks, season_label: $('#s-season').value, intro_text: $('#s-intro').value, tickets_per_game: $('#s-tickets').value}) });
+      await api('/api/admin/settings', { method: 'PUT', body: JSON.stringify({ perks, season_label: $('#s-season').value, intro_text: $('#s-intro').value, tickets_per_game: $('#s-tickets').value, sender_name: $('#s-sender').value }) });
       toast('Saved'); await refresh();
     } catch (err) { toast(err.message, true); }
   });
