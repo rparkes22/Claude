@@ -1,6 +1,6 @@
 # Winner email template
 
-Copy, replace the [bracketed] parts, and send. Use the first opening line for a drawing winner and the second for someone you handed tickets to on request.
+Copy, replace the [bracketed] parts, and send. Use the first opening line for a drawing winner and the second for someone who asked for a specific game. Delete the theme/giveaway lines if the game has none.
 
 ---
 
@@ -13,10 +13,9 @@ Congratulations! Your name was drawn for the Firebirds game below.
 
 **Game details**
 - Coachella Valley Firebirds vs. [Opponent]
-- [Day, Month Date] at [Time] (doors open about [one hour] before puck drop)
-- Acrisure Arena, 75702 Varner Rd, Palm Desert
+- [Day, Month Date] at [Time]
 - Section 205, Row C, Seats 1-4 (four tickets)
-- [Theme night / giveaway, if any]
+- [Theme night]. Giveaway: [item]. Giveaways are limited, so get there early if you want one.
 
 **What's included**
 - Four company season tickets
@@ -25,18 +24,11 @@ Congratulations! Your name was drawn for the Firebirds game below.
 - 15% off at the Firebirds team store when you show your ticket
 
 **How you'll get them**
-The tickets and the parking pass will be transferred to you in the [Ticketmaster / Firebirds] app, the same app the tickets live in, by [date]. Watch for the transfer email at [their work email] and accept it before game day. If you don't have an account yet, create one with that email address. Let me know if you don't see the transfer by [date].
+The tickets and the parking pass will be transferred to your work email from a Firebirds / Acrisure Arena / Ticketmaster sender. They come as two separate transfers in the same app, one for the tickets and one for the parking pass, so please accept both promptly. If you don't have an account yet, create one with your work email so the transfers land in the right place.
 
-**If your plans change**
-If you can no longer go, please tell me by [date] so the tickets go back into the pool for someone else. You'll still be eligible for future games. Please don't resell or give the tickets to anyone outside the company without checking with me first.
-
-**A few reminders**
-- This is your game for the season, so everyone gets a turn. You can still check the schedule at https://firebirds-tickets.vercel.app.
-- [Arena policy you want to flag, e.g. clear bag policy, no re-entry]
-- Questions? Reply to this email or call me at [phone].
+**If you can't attend**
+Plans change. If you can no longer make it, please let me (Ryan) know as soon as you can so we can find someone else to use the tickets. You'll still be eligible for future games.
 
 Enjoy the game, and go Firebirds!
 
-[Your name]
-[Title]
-[Company]
+Ryan
